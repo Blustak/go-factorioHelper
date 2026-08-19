@@ -11,7 +11,7 @@ import (
 
 func TestEntityAddToDBNameOnly(t *testing.T) {
 	cfg := testState(t)
-	e := &Entity{Name: "iron-plate"}
+	e := &Entity{Name: "iron-plate", Type: "item"}
 
 	got, err := e.AddToDB(cfg)
 	if err != nil {
@@ -38,7 +38,7 @@ func TestEntityAddToDBNameOnly(t *testing.T) {
 func TestEntityAddToDBWithOrder(t *testing.T) {
 	cfg := testState(t)
 	order := "a[iron-plate]"
-	e := &Entity{Name: "iron-plate", EntityOrder: &order}
+	e := &Entity{Name: "iron-plate", Type: "item", EntityOrder: &order}
 
 	got, err := e.AddToDB(cfg)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestEntityAddToDBNilReceiver(t *testing.T) {
 func TestEntityGetFromDBRoundTrip(t *testing.T) {
 	cfg := testState(t)
 	order := "a[copper-plate]"
-	e := &Entity{Name: "copper-plate", EntityOrder: &order}
+	e := &Entity{Name: "copper-plate", Type: "item", EntityOrder: &order}
 	inserted, err := e.AddToDB(cfg)
 	if err != nil {
 		t.Fatalf("AddToDB: %v", err)
@@ -83,15 +83,16 @@ func TestEntityGetFromDBRoundTrip(t *testing.T) {
 func TestEntityGetFromDBMismatch(t *testing.T) {
 	cfg := testState(t)
 	order := "a[steel-plate]"
-	e := &Entity{Name: "steel-plate", EntityOrder: &order}
+	e := &Entity{Name: "steel-plate", Type: "item", EntityOrder: &order}
 	if _, err := e.AddToDB(cfg); err != nil {
 		t.Fatalf("AddToDB: %v", err)
 	}
 
 	updatedOrder := sql.NullString{String: "b[steel-plate]", Valid: true}
 	if _, err := cfg.DB.UpdateEntityOrderByName(cfg.CTX, database.UpdateEntityOrderByNameParams{
-		Order: updatedOrder,
-		Name:  "steel-plate",
+		Order:         updatedOrder,
+		Name:          "steel-plate",
+		PrototypeType: "item",
 	}); err != nil {
 		t.Fatalf("UpdateEntityOrderByName: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestEntityGetFromDBMismatch(t *testing.T) {
 
 func TestEntityGetFromDBMissingName(t *testing.T) {
 	cfg := testState(t)
-	e := &Entity{Name: "does-not-exist"}
+	e := &Entity{Name: "does-not-exist", Type: "item"}
 	_, err := e.GetFromDB(cfg)
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("GetFromDB error = %v, want sql.ErrNoRows", err)
@@ -123,7 +124,7 @@ func TestEntityGetFromDBNilReceiver(t *testing.T) {
 
 func TestEntityUnwrapAndGetEntityID(t *testing.T) {
 	cfg := testState(t)
-	e := &Entity{Name: "electronic-circuit"}
+	e := &Entity{Name: "electronic-circuit", Type: "item"}
 	inserted, err := e.AddToDB(cfg)
 	if err != nil {
 		t.Fatalf("AddToDB: %v", err)
@@ -205,5 +206,52 @@ func TestEntityUnmarshalJSONWithOrder(t *testing.T) {
 	}
 	if e.EntityOrder == nil || *e.EntityOrder != "a[copper-ore]" {
 		t.Errorf("EntityOrder = %v, want a[copper-ore]", e.EntityOrder)
+	}
+}
+
+func TestEntityAddToDBRequiresType(t *testing.T) {
+	cfg := testState(t)
+	e := &Entity{Name: "iron-plate"}
+	if _, err := e.AddToDB(cfg); err == nil {
+		t.Fatal("AddToDB error = nil, want type required")
+	}
+}
+
+func TestEntityAddToDBGetOrCreateFillsOrder(t *testing.T) {
+	cfg := testState(t)
+	stub := &Entity{Name: "ash", Type: "item"}
+	first, err := stub.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB stub: %v", err)
+	}
+
+	order := "a[ash]"
+	full := &Entity{Name: "ash", Type: "item", EntityOrder: &order}
+	second, err := full.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB fill: %v", err)
+	}
+	if first.ID != second.ID {
+		t.Errorf("ID = %d, want %d (same entity)", second.ID, first.ID)
+	}
+	if !second.EntityOrder.Valid || second.EntityOrder.String != order {
+		t.Errorf("EntityOrder = %+v, want valid %q", second.EntityOrder, order)
+	}
+}
+
+func TestEntitySameNameDifferentType(t *testing.T) {
+	cfg := testState(t)
+	item := &Entity{Name: "iron-plate", Type: "item"}
+	recipe := &Entity{Name: "iron-plate", Type: "recipe"}
+	itemRow, err := item.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB item: %v", err)
+	}
+	recipeRow, err := recipe.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB recipe: %v", err)
+	}
+	if itemRow.ID == recipeRow.ID {
+		t.Fatal("item and recipe entities share an ID, want distinct rows")
 	}
 }

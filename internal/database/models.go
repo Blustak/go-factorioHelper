@@ -11,7 +11,7 @@ import (
 type AssemblyMachine struct {
 	ID                 int64
 	EntityID           int64
-	CraftingCategories sql.NullString
+	CraftingCategories []byte
 	CraftingSpeed      sql.NullFloat64
 	EnergySource       []byte
 	EnergyUsage        sql.NullFloat64
@@ -19,9 +19,10 @@ type AssemblyMachine struct {
 }
 
 type Entity struct {
-	ID          int64
-	Name        string
-	EntityOrder sql.NullString
+	ID            int64
+	Name          string
+	PrototypeType string
+	EntityOrder   sql.NullString
 }
 
 type Fluid struct {

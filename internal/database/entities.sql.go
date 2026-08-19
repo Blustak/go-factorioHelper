@@ -11,23 +11,28 @@ import (
 )
 
 const addEntity = `-- name: AddEntity :one
-
 INSERT INTO entities(
-  name, entity_order
+  name, prototype_type, entity_order
 ) VALUES (
-  ?1, ?2
-) RETURNING id, name, entity_order
+  ?1, ?2, ?3
+) RETURNING id, name, prototype_type, entity_order
 `
 
 type AddEntityParams struct {
-	Name        string
-	EntityOrder sql.NullString
+	Name          string
+	PrototypeType string
+	EntityOrder   sql.NullString
 }
 
 func (q *Queries) AddEntity(ctx context.Context, arg AddEntityParams) (Entity, error) {
-	row := q.db.QueryRowContext(ctx, addEntity, arg.Name, arg.EntityOrder)
+	row := q.db.QueryRowContext(ctx, addEntity, arg.Name, arg.PrototypeType, arg.EntityOrder)
 	var i Entity
-	err := row.Scan(&i.ID, &i.Name, &i.EntityOrder)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PrototypeType,
+		&i.EntityOrder,
+	)
 	return i, err
 }
 
@@ -41,17 +46,21 @@ func (q *Queries) DeleteEntityByID(ctx context.Context, id int64) error {
 }
 
 const deleteEntityByName = `-- name: DeleteEntityByName :exec
-DELETE FROM entities WHERE name = ?1
+DELETE FROM entities WHERE name = ?1 AND prototype_type = ?2
 `
 
-func (q *Queries) DeleteEntityByName(ctx context.Context, name string) error {
-	_, err := q.db.ExecContext(ctx, deleteEntityByName, name)
+type DeleteEntityByNameParams struct {
+	Name          string
+	PrototypeType string
+}
+
+func (q *Queries) DeleteEntityByName(ctx context.Context, arg DeleteEntityByNameParams) error {
+	_, err := q.db.ExecContext(ctx, deleteEntityByName, arg.Name, arg.PrototypeType)
 	return err
 }
 
 const getAllEntities = `-- name: GetAllEntities :many
-
-SELECT id, name, entity_order FROM entities
+SELECT id, name, prototype_type, entity_order FROM entities
 `
 
 func (q *Queries) GetAllEntities(ctx context.Context) ([]Entity, error) {
@@ -63,7 +72,44 @@ func (q *Queries) GetAllEntities(ctx context.Context) ([]Entity, error) {
 	var items []Entity
 	for rows.Next() {
 		var i Entity
-		if err := rows.Scan(&i.ID, &i.Name, &i.EntityOrder); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.PrototypeType,
+			&i.EntityOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getEntitiesByName = `-- name: GetEntitiesByName :many
+SELECT id, name, prototype_type, entity_order FROM entities WHERE name = ?1
+`
+
+func (q *Queries) GetEntitiesByName(ctx context.Context, name string) ([]Entity, error) {
+	rows, err := q.db.QueryContext(ctx, getEntitiesByName, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Entity
+	for rows.Next() {
+		var i Entity
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.PrototypeType,
+			&i.EntityOrder,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -78,29 +124,44 @@ func (q *Queries) GetAllEntities(ctx context.Context) ([]Entity, error) {
 }
 
 const getEntityByID = `-- name: GetEntityByID :one
-SELECT id, name, entity_order FROM entities WHERE id = ?1
+SELECT id, name, prototype_type, entity_order FROM entities WHERE id = ?1
 `
 
 func (q *Queries) GetEntityByID(ctx context.Context, id int64) (Entity, error) {
 	row := q.db.QueryRowContext(ctx, getEntityByID, id)
 	var i Entity
-	err := row.Scan(&i.ID, &i.Name, &i.EntityOrder)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PrototypeType,
+		&i.EntityOrder,
+	)
 	return i, err
 }
 
 const getEntityByName = `-- name: GetEntityByName :one
-SELECT id, name, entity_order FROM entities WHERE name = ?1
+SELECT id, name, prototype_type, entity_order FROM entities WHERE name = ?1 AND prototype_type = ?2
 `
 
-func (q *Queries) GetEntityByName(ctx context.Context, name string) (Entity, error) {
-	row := q.db.QueryRowContext(ctx, getEntityByName, name)
+type GetEntityByNameParams struct {
+	Name          string
+	PrototypeType string
+}
+
+func (q *Queries) GetEntityByName(ctx context.Context, arg GetEntityByNameParams) (Entity, error) {
+	row := q.db.QueryRowContext(ctx, getEntityByName, arg.Name, arg.PrototypeType)
 	var i Entity
-	err := row.Scan(&i.ID, &i.Name, &i.EntityOrder)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PrototypeType,
+		&i.EntityOrder,
+	)
 	return i, err
 }
 
 const updateEntityOrderByID = `-- name: UpdateEntityOrderByID :one
-UPDATE entities SET entity_order = ?1 WHERE id = ?2 RETURNING id, name, entity_order
+UPDATE entities SET entity_order = ?1 WHERE id = ?2 RETURNING id, name, prototype_type, entity_order
 `
 
 type UpdateEntityOrderByIDParams struct {
@@ -111,22 +172,33 @@ type UpdateEntityOrderByIDParams struct {
 func (q *Queries) UpdateEntityOrderByID(ctx context.Context, arg UpdateEntityOrderByIDParams) (Entity, error) {
 	row := q.db.QueryRowContext(ctx, updateEntityOrderByID, arg.Order, arg.ID)
 	var i Entity
-	err := row.Scan(&i.ID, &i.Name, &i.EntityOrder)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PrototypeType,
+		&i.EntityOrder,
+	)
 	return i, err
 }
 
 const updateEntityOrderByName = `-- name: UpdateEntityOrderByName :one
-UPDATE entities SET entity_order = ?1 WHERE name = ?2 RETURNING id, name, entity_order
+UPDATE entities SET entity_order = ?1 WHERE name = ?2 AND prototype_type = ?3 RETURNING id, name, prototype_type, entity_order
 `
 
 type UpdateEntityOrderByNameParams struct {
-	Order sql.NullString
-	Name  string
+	Order         sql.NullString
+	Name          string
+	PrototypeType string
 }
 
 func (q *Queries) UpdateEntityOrderByName(ctx context.Context, arg UpdateEntityOrderByNameParams) (Entity, error) {
-	row := q.db.QueryRowContext(ctx, updateEntityOrderByName, arg.Order, arg.Name)
+	row := q.db.QueryRowContext(ctx, updateEntityOrderByName, arg.Order, arg.Name, arg.PrototypeType)
 	var i Entity
-	err := row.Scan(&i.ID, &i.Name, &i.EntityOrder)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PrototypeType,
+		&i.EntityOrder,
+	)
 	return i, err
 }

@@ -14,6 +14,10 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func testState(t *testing.T) *config.State {
 	t.Helper()
 
