@@ -22,17 +22,25 @@ type Recipe struct {
 
 func (r *Recipe) UnmarshalJSON(b []byte) error {
 	var raw struct {
-		Name           string       `json:"name"`
-		Type           string       `json:"type"`
-		Order          *string      `json:"order"`
-		EnergyRequired *float64     `json:"energy_required"`
-		Category       *string      `json:"category"`
-		MainProduct    *string      `json:"main_product"`
-		Ingredients    []Ingredient `json:"ingredients"`
-		Results        []Product    `json:"results"`
+		Name           string          `json:"name"`
+		Type           string          `json:"type"`
+		Order          *string         `json:"order"`
+		EnergyRequired *float64        `json:"energy_required"`
+		Category       *string         `json:"category"`
+		MainProduct    *string         `json:"main_product"`
+		Ingredients    json.RawMessage `json:"ingredients"`
+		Results        json.RawMessage `json:"results"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
+	}
+	ings, err := unmarshalFactorioArray[Ingredient](raw.Ingredients)
+	if err != nil {
+		return fmt.Errorf("recipe %q ingredients: %w", raw.Name, err)
+	}
+	results, err := unmarshalFactorioArray[Product](raw.Results)
+	if err != nil {
+		return fmt.Errorf("recipe %q results: %w", raw.Name, err)
 	}
 	mainProduct := raw.MainProduct
 	if mainProduct != nil && *mainProduct == "" {
@@ -47,8 +55,8 @@ func (r *Recipe) UnmarshalJSON(b []byte) error {
 		EnergyRequired: raw.EnergyRequired,
 		Category:       raw.Category,
 		MainProduct:    mainProduct,
-		Ingredients:    raw.Ingredients,
-		Results:        raw.Results,
+		Ingredients:    ings,
+		Results:        results,
 	}
 	return nil
 }

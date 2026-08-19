@@ -70,6 +70,36 @@ func TestRecipeUnmarshalAndRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRecipeEmptyObjectResultsAndIngredients(t *testing.T) {
+	var recipe Recipe
+	if err := json.Unmarshal([]byte(`{
+		"type": "recipe",
+		"name": "brain-food-01",
+		"ingredients": [{"type": "item", "name": "brain-cartridge-01", "amount": 1}],
+		"results": {}
+	}`), &recipe); err != nil {
+		t.Fatalf("UnmarshalJSON results object: %v", err)
+	}
+	if recipe.Results == nil || len(recipe.Results) != 0 {
+		t.Errorf("Results = %#v, want empty slice", recipe.Results)
+	}
+
+	if err := json.Unmarshal([]byte(`{
+		"type": "recipe",
+		"name": "vacuum",
+		"ingredients": {},
+		"results": [{"type": "fluid", "name": "vacuum", "amount": 200}]
+	}`), &recipe); err != nil {
+		t.Fatalf("UnmarshalJSON ingredients object: %v", err)
+	}
+	if recipe.Ingredients == nil || len(recipe.Ingredients) != 0 {
+		t.Errorf("Ingredients = %#v, want empty slice", recipe.Ingredients)
+	}
+	if len(recipe.Results) != 1 || recipe.Results[0].Name != "vacuum" {
+		t.Errorf("Results = %+v, want vacuum", recipe.Results)
+	}
+}
+
 func TestRecipeEmptyMainProduct(t *testing.T) {
 	var recipe Recipe
 	if err := json.Unmarshal([]byte(`{

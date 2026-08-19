@@ -8,6 +8,20 @@ import (
 	"github.com/Blustak/go-factorioHelper/internal/database"
 )
 
+func TestResourceUnmarshalEmptyObjectResults(t *testing.T) {
+	var res Resource
+	if err := json.Unmarshal([]byte(`{
+		"type": "resource",
+		"name": "bitumen-seep",
+		"minable": {"mining_time": 1, "results": {}}
+	}`), &res); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if res.Minable.Results == nil || len(res.Minable.Results) != 0 {
+		t.Errorf("Results = %#v, want empty slice", res.Minable.Results)
+	}
+}
+
 func TestResourceUnmarshalLegacyResult(t *testing.T) {
 	var res Resource
 	if err := json.Unmarshal([]byte(`{

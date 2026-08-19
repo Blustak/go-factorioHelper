@@ -24,12 +24,12 @@ func (r *Resource) UnmarshalJSON(b []byte) error {
 		Type    string  `json:"type"`
 		Order   *string `json:"order"`
 		Minable *struct {
-			MiningTime    *float64  `json:"mining_time"`
-			Results       []Product `json:"results"`
-			Result        *string   `json:"result"`
-			ResultCount   *float64  `json:"result_count"`
-			RequiredFluid *string   `json:"required_fluid"`
-			FluidAmount   *float64  `json:"fluid_amount"`
+			MiningTime    *float64        `json:"mining_time"`
+			Results       json.RawMessage `json:"results"`
+			Result        *string         `json:"result"`
+			ResultCount   *float64        `json:"result_count"`
+			RequiredFluid *string         `json:"required_fluid"`
+			FluidAmount   *float64        `json:"fluid_amount"`
 		} `json:"minable"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
@@ -44,10 +44,14 @@ func (r *Resource) UnmarshalJSON(b []byte) error {
 		},
 	}
 	if raw.Minable != nil {
+		results, err := unmarshalFactorioArray[Product](raw.Minable.Results)
+		if err != nil {
+			return fmt.Errorf("resource %q minable.results: %w", raw.Name, err)
+		}
 		res.MiningTime = raw.Minable.MiningTime
 		res.RequiredFluid = raw.Minable.RequiredFluid
 		res.Minable = MinableResults{
-			Results:     raw.Minable.Results,
+			Results:     results,
 			FluidAmount: raw.Minable.FluidAmount,
 		}
 		if len(res.Minable.Results) == 0 && raw.Minable.Result != nil && *raw.Minable.Result != "" {
