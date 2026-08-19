@@ -1,0 +1,71 @@
+{
+  "item": {
+    "wood": {
+      "type": "item",
+      "name": "wood",
+      "order": "a[wood]",
+      "stack_size": 100,
+      "weight": 2000,
+      "fuel_value": "2MJ"
+    }
+  },
+  "fluid": {
+    "crude-oil": {
+      "type": "fluid",
+      "name": "crude-oil",
+      "order": "a[fluid]-b[oil]-a[crude-oil]",
+      "default_temperature": 25
+    }
+  },
+  "resource": {
+    "wood": {
+      "type": "resource",
+      "name": "wood",
+      "minable": {
+        "mining_time": 1,
+        "result": "wood"
+      }
+    }
+  },
+  "recipe": {
+    "wood": {
+      "type": "recipe",
+      "name": "wood",
+      "energy_required": 0.5,
+      "ingredients": [
+        {
+          "type": "item",
+          "name": "wood",
+          "amount": 1
+        }
+      ],
+      "results": [
+        {
+          "type": "item",
+          "name": "wood",
+          "amount": 1
+        }
+      ],
+      "main_product": "wood"
+    }
+  },
+  "assembling-machine": {
+    "assembling-machine-1": {
+      "type": "assembling-machine",
+      "name": "assembling-machine-1",
+      "crafting_categories": ["crafting"],
+      "crafting_speed": 0.5,
+      "energy_source": {
+        "type": "electric",
+        "usage_priority": "secondary-input"
+      },
+      "energy_usage": "75kW"
+    }
+  },
+  "furnace": {
+    "stone-furnace": {
+      "type": "furnace",
+      "name": "stone-furnace"
+    }
+  }
+}

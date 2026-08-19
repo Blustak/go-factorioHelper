@@ -3,6 +3,7 @@ module github.com/Blustak/go-factorioHelper
 go 1.26.5
 
 require (
+	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.50
 	github.com/pressly/goose/v3 v3.27.3
 )
