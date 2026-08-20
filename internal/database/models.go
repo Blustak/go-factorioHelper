@@ -23,6 +23,7 @@ type Entity struct {
 	Name          string
 	PrototypeType string
 	EntityOrder   sql.NullString
+	LocalisedName string
 }
 
 type Fluid struct {

@@ -41,11 +41,7 @@ func (i *Item) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("item %q fuel_value: %w", raw.Name, err)
 	}
 	*i = Item{
-		Entity: Entity{
-			Name:        raw.Name,
-			Type:        raw.Type,
-			EntityOrder: raw.Order,
-		},
+		Entity:      newEntity(raw.Name, raw.Type, raw.Order, b),
 		StackSize:   raw.StackSize,
 		BurntResult: raw.BurntResult,
 		FuelValue:   fuel,

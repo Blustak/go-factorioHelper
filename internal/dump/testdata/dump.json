@@ -46,7 +46,8 @@
           "amount": 1
         }
       ],
-      "main_product": "wood"
+      "main_product": "wood",
+      "localised_name": ["?", ["recipe-name.wood"], ["item-name.wood"]]
     }
   },
   "assembling-machine": {
@@ -55,6 +56,7 @@
       "name": "assembling-machine-1",
       "crafting_categories": ["crafting"],
       "crafting_speed": 0.5,
+      "localised_name": ["", ["entity-name.assembling-machine-1"], " (Legacy)"],
       "energy_source": {
         "type": "electric",
         "usage_priority": "secondary-input"

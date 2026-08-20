@@ -81,7 +81,7 @@ func (q *Queries) GetAllResourceValues(ctx context.Context) ([]Resource, error) 
 }
 
 const getAllResources = `-- name: GetAllResources :many
-SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order
+SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order, localised_name
 FROM resources
 LEFT JOIN entities
 ON resources.entity_id = entities.id
@@ -98,6 +98,7 @@ type GetAllResourcesRow struct {
 	Name          sql.NullString
 	PrototypeType sql.NullString
 	EntityOrder   sql.NullString
+	LocalisedName sql.NullString
 }
 
 func (q *Queries) GetAllResources(ctx context.Context) ([]GetAllResourcesRow, error) {
@@ -120,6 +121,7 @@ func (q *Queries) GetAllResources(ctx context.Context) ([]GetAllResourcesRow, er
 			&i.Name,
 			&i.PrototypeType,
 			&i.EntityOrder,
+			&i.LocalisedName,
 		); err != nil {
 			return nil, err
 		}
@@ -135,7 +137,7 @@ func (q *Queries) GetAllResources(ctx context.Context) ([]GetAllResourcesRow, er
 }
 
 const getResourceByEntityID = `-- name: GetResourceByEntityID :one
-SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order
+SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order, localised_name
 FROM resources
 LEFT JOIN entities
 ON resources.entity_id = entities.id
@@ -153,6 +155,7 @@ type GetResourceByEntityIDRow struct {
 	Name          sql.NullString
 	PrototypeType sql.NullString
 	EntityOrder   sql.NullString
+	LocalisedName sql.NullString
 }
 
 func (q *Queries) GetResourceByEntityID(ctx context.Context, id int64) (GetResourceByEntityIDRow, error) {
@@ -169,12 +172,13 @@ func (q *Queries) GetResourceByEntityID(ctx context.Context, id int64) (GetResou
 		&i.Name,
 		&i.PrototypeType,
 		&i.EntityOrder,
+		&i.LocalisedName,
 	)
 	return i, err
 }
 
 const getResourceByName = `-- name: GetResourceByName :one
-SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order
+SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order, localised_name
 FROM resources
 LEFT JOIN entities
 ON resources.entity_id = entities.id
@@ -192,6 +196,7 @@ type GetResourceByNameRow struct {
 	Name          sql.NullString
 	PrototypeType sql.NullString
 	EntityOrder   sql.NullString
+	LocalisedName sql.NullString
 }
 
 func (q *Queries) GetResourceByName(ctx context.Context, name string) (GetResourceByNameRow, error) {
@@ -208,12 +213,13 @@ func (q *Queries) GetResourceByName(ctx context.Context, name string) (GetResour
 		&i.Name,
 		&i.PrototypeType,
 		&i.EntityOrder,
+		&i.LocalisedName,
 	)
 	return i, err
 }
 
 const getResourceByResourceID = `-- name: GetResourceByResourceID :one
-SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order
+SELECT resources.id, entity_id, mining_time, results, required_fluid, category, entities.id, name, prototype_type, entity_order, localised_name
 FROM resources
 LEFT JOIN entities
 ON resources.entity_id = entities.id
@@ -231,6 +237,7 @@ type GetResourceByResourceIDRow struct {
 	Name          sql.NullString
 	PrototypeType sql.NullString
 	EntityOrder   sql.NullString
+	LocalisedName sql.NullString
 }
 
 func (q *Queries) GetResourceByResourceID(ctx context.Context, id int64) (GetResourceByResourceIDRow, error) {
@@ -247,6 +254,7 @@ func (q *Queries) GetResourceByResourceID(ctx context.Context, id int64) (GetRes
 		&i.Name,
 		&i.PrototypeType,
 		&i.EntityOrder,
+		&i.LocalisedName,
 	)
 	return i, err
 }

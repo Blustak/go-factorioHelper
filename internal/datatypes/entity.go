@@ -38,10 +38,11 @@ func (err DatatypeNilError[T]) Error() string {
 }
 
 type Entity struct {
-	Name        string  `json:"name"`
-	Type        string  `json:"type"`
-	EntityOrder *string `json:"order"`
-	entEntry    *database.Entity
+	Name         string  `json:"name"`
+	Type         string  `json:"type"`
+	EntityOrder  *string `json:"order"`
+	localisedRaw json.RawMessage
+	entEntry     *database.Entity
 }
 
 func (e *Entity) AddToDB(cfg *config.State) (database.Entity, error) {
@@ -52,6 +53,8 @@ func (e *Entity) AddToDB(cfg *config.State) (database.Entity, error) {
 	if e.Type == "" {
 		return ent, fmt.Errorf("entity type is required")
 	}
+
+	resolved := Display(e.localisedRaw, e.Name)
 
 	existing, err := cfg.DB.GetEntityByName(cfg.CTX, database.GetEntityByNameParams{
 		Name:          e.Name,
@@ -67,6 +70,17 @@ func (e *Entity) AddToDB(cfg *config.State) (database.Entity, error) {
 				return ent, err
 			}
 		}
+		if existing.LocalisedName == "" || len(e.localisedRaw) > 0 {
+			if resolved != existing.LocalisedName {
+				existing, err = cfg.DB.UpdateEntityLocalisedNameByID(cfg.CTX, database.UpdateEntityLocalisedNameByIDParams{
+					LocalisedName: resolved,
+					ID:            existing.ID,
+				})
+				if err != nil {
+					return ent, err
+				}
+			}
+		}
 		e.entEntry = &existing
 		return existing, nil
 	}
@@ -78,6 +92,7 @@ func (e *Entity) AddToDB(cfg *config.State) (database.Entity, error) {
 		Name:          e.Name,
 		PrototypeType: e.Type,
 		EntityOrder:   sql.NullString{Valid: false},
+		LocalisedName: resolved,
 	}
 	if e.EntityOrder != nil {
 		entityParams.EntityOrder = sql.NullString{String: *e.EntityOrder, Valid: true}
@@ -131,6 +146,7 @@ func (e *Entity) UnmarshalJSON(bytes []byte) error {
 		return err
 	}
 	*e = Entity(a)
+	e.localisedRaw = parseLocalisedName(bytes)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"database/sql"
 	"fmt"
 	"sort"
 
@@ -11,12 +12,14 @@ import (
 )
 
 type Commodity struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	LocalisedName string `json:"localised_name"`
 }
 
 type Recipe struct {
 	Name           string      `json:"name"`
+	LocalisedName  string      `json:"localised_name"`
 	Category       string      `json:"category"`
 	EnergyRequired *float64    `json:"energy_required,omitempty"`
 	Ingredients    []Commodity `json:"ingredients"`
@@ -25,12 +28,14 @@ type Recipe struct {
 
 type Machine struct {
 	Name               string   `json:"name"`
+	LocalisedName      string   `json:"localised_name"`
 	CraftingCategories []string `json:"crafting_categories"`
 	CraftingSpeed      *float64 `json:"crafting_speed,omitempty"`
 }
 
 type Producer struct {
 	Name               string   `json:"name"`
+	LocalisedName      string   `json:"localised_name"`
 	Type               string   `json:"type"`
 	ResourceCategories []string `json:"resource_categories"`
 	MiningSpeed        *float64 `json:"mining_speed,omitempty"`
@@ -47,7 +52,7 @@ type Catalog struct {
 
 	recipeByName  map[string]Recipe
 	machineByName map[string]Machine
-	commodities   map[string]struct{}
+	commodities   map[string]Commodity
 }
 
 var _ chain.Catalog = (*Catalog)(nil)
@@ -64,7 +69,13 @@ func Load(cfg *config.State) (*Catalog, error) {
 		Producers:     []Producer{},
 		recipeByName:  map[string]Recipe{},
 		machineByName: map[string]Machine{},
-		commodities:   map[string]struct{}{},
+		commodities:   map[string]Commodity{},
+	}
+	if err := c.loadItems(cfg); err != nil {
+		return nil, err
+	}
+	if err := c.loadFluids(cfg); err != nil {
+		return nil, err
 	}
 	if err := c.loadRecipes(cfg); err != nil {
 		return nil, err
@@ -73,12 +84,6 @@ func Load(cfg *config.State) (*Catalog, error) {
 		return nil, err
 	}
 	if err := c.loadProducers(cfg); err != nil {
-		return nil, err
-	}
-	if err := c.loadItems(cfg); err != nil {
-		return nil, err
-	}
-	if err := c.loadFluids(cfg); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -108,10 +113,11 @@ func (c *Catalog) loadRecipes(cfg *config.State) error {
 		}
 		dto := Recipe{
 			Name:           rec.Name,
+			LocalisedName:  rowLocalised(rec.Name, row.LocalisedName),
 			Category:       "",
 			EnergyRequired: rec.EnergyRequired,
-			Ingredients:    ingredientsOf(rec.Ingredients),
-			Products:       productsOf(rec.Results),
+			Ingredients:    c.lookupIngredients(rec.Ingredients),
+			Products:       c.lookupProducts(rec.Results),
 		}
 		if rec.Category != nil {
 			dto.Category = *rec.Category
@@ -119,7 +125,9 @@ func (c *Catalog) loadRecipes(cfg *config.State) error {
 		c.Recipes = append(c.Recipes, dto)
 		c.recipeByName[dto.Name] = dto
 	}
-	sort.Slice(c.Recipes, func(i, j int) bool { return c.Recipes[i].Name < c.Recipes[j].Name })
+	sort.Slice(c.Recipes, func(i, j int) bool {
+		return displayLess(c.Recipes[i].Name, c.Recipes[i].LocalisedName, c.Recipes[j].Name, c.Recipes[j].LocalisedName)
+	})
 	return nil
 }
 
@@ -151,13 +159,16 @@ func (c *Catalog) loadMachines(cfg *config.State) error {
 		}
 		dto := Machine{
 			Name:               m.Name,
+			LocalisedName:      rowLocalised(m.Name, row.LocalisedName),
 			CraftingCategories: cats,
 			CraftingSpeed:      m.CraftingSpeed,
 		}
 		c.Machines = append(c.Machines, dto)
 		c.machineByName[dto.Name] = dto
 	}
-	sort.Slice(c.Machines, func(i, j int) bool { return c.Machines[i].Name < c.Machines[j].Name })
+	sort.Slice(c.Machines, func(i, j int) bool {
+		return displayLess(c.Machines[i].Name, c.Machines[i].LocalisedName, c.Machines[j].Name, c.Machines[j].LocalisedName)
+	})
 	return nil
 }
 
@@ -190,6 +201,7 @@ func (c *Catalog) loadProducers(cfg *config.State) error {
 		}
 		dto := Producer{
 			Name:               p.Name,
+			LocalisedName:      rowLocalised(p.Name, row.LocalisedName),
 			Type:               p.Type,
 			ResourceCategories: cats,
 			MiningSpeed:        p.MiningSpeed,
@@ -205,7 +217,9 @@ func (c *Catalog) loadProducers(cfg *config.State) error {
 		}
 		c.Producers = append(c.Producers, dto)
 	}
-	sort.Slice(c.Producers, func(i, j int) bool { return c.Producers[i].Name < c.Producers[j].Name })
+	sort.Slice(c.Producers, func(i, j int) bool {
+		return displayLess(c.Producers[i].Name, c.Producers[i].LocalisedName, c.Producers[j].Name, c.Producers[j].LocalisedName)
+	})
 	return nil
 }
 
@@ -222,11 +236,13 @@ func (c *Catalog) loadItems(cfg *config.State) error {
 		if proto == "" {
 			proto = "item"
 		}
-		dto := Commodity{Name: row.Name.String, Type: proto}
+		dto := Commodity{Name: row.Name.String, Type: proto, LocalisedName: rowLocalised(row.Name.String, row.LocalisedName)}
 		c.Items = append(c.Items, dto)
-		c.commodities[commodityKey(dto.Name, dto.Type)] = struct{}{}
+		c.commodities[commodityKey(dto.Name, dto.Type)] = dto
 	}
-	sort.Slice(c.Items, func(i, j int) bool { return c.Items[i].Name < c.Items[j].Name })
+	sort.Slice(c.Items, func(i, j int) bool {
+		return displayLess(c.Items[i].Name, c.Items[i].LocalisedName, c.Items[j].Name, c.Items[j].LocalisedName)
+	})
 	return nil
 }
 
@@ -243,11 +259,13 @@ func (c *Catalog) loadFluids(cfg *config.State) error {
 		if proto == "" {
 			proto = "fluid"
 		}
-		dto := Commodity{Name: row.Name.String, Type: proto}
+		dto := Commodity{Name: row.Name.String, Type: proto, LocalisedName: rowLocalised(row.Name.String, row.LocalisedName)}
 		c.Fluids = append(c.Fluids, dto)
-		c.commodities[commodityKey(dto.Name, dto.Type)] = struct{}{}
+		c.commodities[commodityKey(dto.Name, dto.Type)] = dto
 	}
-	sort.Slice(c.Fluids, func(i, j int) bool { return c.Fluids[i].Name < c.Fluids[j].Name })
+	sort.Slice(c.Fluids, func(i, j int) bool {
+		return displayLess(c.Fluids[i].Name, c.Fluids[i].LocalisedName, c.Fluids[j].Name, c.Fluids[j].LocalisedName)
+	})
 	return nil
 }
 
@@ -331,20 +349,44 @@ func (c *Catalog) ProducersForCategory(category string) []Producer {
 	return out
 }
 
-func ingredientsOf(ings []datatypes.Ingredient) []Commodity {
+func (c *Catalog) lookupIngredients(ings []datatypes.Ingredient) []Commodity {
 	out := make([]Commodity, 0, len(ings))
 	for _, in := range ings {
-		out = append(out, Commodity{Name: in.Name, Type: in.Type})
+		out = append(out, c.lookupCommodity(in.Name, in.Type))
 	}
 	return out
 }
 
-func productsOf(products []datatypes.Product) []Commodity {
+func (c *Catalog) lookupProducts(products []datatypes.Product) []Commodity {
 	out := make([]Commodity, 0, len(products))
 	for _, p := range products {
-		out = append(out, Commodity{Name: p.Name, Type: p.Type})
+		out = append(out, c.lookupCommodity(p.Name, p.Type))
 	}
 	return out
+}
+
+func (c *Catalog) lookupCommodity(name, typ string) Commodity {
+	if typ == "" {
+		typ = "item"
+	}
+	if found, ok := c.commodities[commodityKey(name, typ)]; ok {
+		return found
+	}
+	return Commodity{Name: name, Type: typ, LocalisedName: datatypes.Humanize(name)}
+}
+
+func rowLocalised(name string, ns sql.NullString) string {
+	if ns.Valid && ns.String != "" {
+		return ns.String
+	}
+	return datatypes.Humanize(name)
+}
+
+func displayLess(aName, aDisp, bName, bDisp string) bool {
+	if aDisp != bDisp {
+		return aDisp < bDisp
+	}
+	return aName < bName
 }
 
 func toChain(cs []Commodity) []chain.Commodity {

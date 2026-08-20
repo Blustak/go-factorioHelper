@@ -37,11 +37,7 @@ func (f *Fluid) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("fluid %q fuel_value: %w", raw.Name, err)
 	}
 	*f = Fluid{
-		Entity: Entity{
-			Name:        raw.Name,
-			Type:        raw.Type,
-			EntityOrder: raw.Order,
-		},
+		Entity:             newEntity(raw.Name, raw.Type, raw.Order, b),
 		FuelValue:          fuel,
 		GasTemperature:     int64FromFloat(raw.GasTemperature),
 		DefaultTemperature: int64FromFloat(raw.DefaultTemperature),

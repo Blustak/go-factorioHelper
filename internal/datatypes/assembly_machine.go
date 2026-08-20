@@ -39,11 +39,7 @@ func (m *AssemblyMachine) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("assembling machine %q energy_usage: %w", raw.Name, err)
 	}
 	*m = AssemblyMachine{
-		Entity: Entity{
-			Name:        raw.Name,
-			Type:        raw.Type,
-			EntityOrder: raw.Order,
-		},
+		Entity:             newEntity(raw.Name, raw.Type, raw.Order, b),
 		CraftingCategories: raw.CraftingCategories,
 		CraftingSpeed:      raw.CraftingSpeed,
 		EnergySource:       raw.EnergySource,

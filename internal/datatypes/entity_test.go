@@ -20,6 +20,9 @@ func TestEntityAddToDBNameOnly(t *testing.T) {
 	if got.Name != "iron-plate" {
 		t.Errorf("Name = %q, want iron-plate", got.Name)
 	}
+	if got.LocalisedName != "Iron plate" {
+		t.Errorf("LocalisedName = %q, want Iron plate", got.LocalisedName)
+	}
 	if got.EntityOrder.Valid {
 		t.Errorf("EntityOrder.Valid = true, want false")
 	}
@@ -193,6 +196,57 @@ func TestEntityUnmarshalJSONNameOnly(t *testing.T) {
 	}
 	if e.EntityOrder != nil {
 		t.Errorf("EntityOrder = %v, want nil", e.EntityOrder)
+	}
+}
+
+func TestEntityUnmarshalJSONWithLocalisedName(t *testing.T) {
+	var e Entity
+	raw := []byte(`{"name":"pipette-dino-dig-site","type":"mining-drill","localised_name":["entity-name.dino-dig-site"]}`)
+	if err := json.Unmarshal(raw, &e); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if Display(e.localisedRaw, e.Name) != "Dino dig site" {
+		t.Errorf("display = %q, want Dino dig site", Display(e.localisedRaw, e.Name))
+	}
+}
+
+func TestEntityAddToDBFillsLocalisedNameFromDump(t *testing.T) {
+	cfg := testState(t)
+	stub := &Entity{Name: "pipette-dino-dig-site", Type: "mining-drill"}
+	first, err := stub.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB stub: %v", err)
+	}
+	if first.LocalisedName != "Pipette dino dig site" {
+		t.Errorf("stub LocalisedName = %q, want Pipette dino dig site", first.LocalisedName)
+	}
+
+	var full Entity
+	if err := json.Unmarshal([]byte(`{
+		"name": "pipette-dino-dig-site",
+		"type": "mining-drill",
+		"localised_name": ["entity-name.dino-dig-site"]
+	}`), &full); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	second, err := full.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB full: %v", err)
+	}
+	if first.ID != second.ID {
+		t.Errorf("ID = %d, want %d", second.ID, first.ID)
+	}
+	if second.LocalisedName != "Dino dig site" {
+		t.Errorf("LocalisedName = %q, want Dino dig site", second.LocalisedName)
+	}
+
+	clobber := &Entity{Name: "pipette-dino-dig-site", Type: "mining-drill"}
+	third, err := clobber.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB stub again: %v", err)
+	}
+	if third.LocalisedName != "Dino dig site" {
+		t.Errorf("stub clobber LocalisedName = %q, want Dino dig site", third.LocalisedName)
 	}
 }
 

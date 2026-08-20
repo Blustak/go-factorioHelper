@@ -47,11 +47,7 @@ func (r *Resource) UnmarshalJSON(b []byte) error {
 		category = &cat
 	}
 	res := Resource{
-		Entity: Entity{
-			Name:        raw.Name,
-			Type:        raw.Type,
-			EntityOrder: raw.Order,
-		},
+		Entity:   newEntity(raw.Name, raw.Type, raw.Order, b),
 		Category: category,
 	}
 	if raw.Minable != nil {

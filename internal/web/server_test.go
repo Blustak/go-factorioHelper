@@ -68,15 +68,18 @@ func TestGetRecipesDecodesIngredients(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", res.Code, res.Body.Bytes())
 	}
 	var recipes []struct {
-		Name        string `json:"name"`
-		Category    string `json:"category"`
-		Ingredients []struct {
-			Name string `json:"name"`
-			Type string `json:"type"`
+		Name          string `json:"name"`
+		LocalisedName string `json:"localised_name"`
+		Category      string `json:"category"`
+		Ingredients   []struct {
+			Name          string `json:"name"`
+			Type          string `json:"type"`
+			LocalisedName string `json:"localised_name"`
 		} `json:"ingredients"`
 		Products []struct {
-			Name string `json:"name"`
-			Type string `json:"type"`
+			Name          string `json:"name"`
+			Type          string `json:"type"`
+			LocalisedName string `json:"localised_name"`
 		} `json:"products"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &recipes); err != nil {
@@ -85,13 +88,16 @@ func TestGetRecipesDecodesIngredients(t *testing.T) {
 	if len(recipes) != 1 || recipes[0].Name != "wood" {
 		t.Fatalf("recipes = %+v", recipes)
 	}
+	if recipes[0].LocalisedName != "Wood" {
+		t.Errorf("recipe localised_name = %q, want Wood", recipes[0].LocalisedName)
+	}
 	if recipes[0].Category != "crafting" {
 		t.Errorf("category = %q, want crafting", recipes[0].Category)
 	}
-	if len(recipes[0].Ingredients) != 1 || recipes[0].Ingredients[0].Name != "wood" {
+	if len(recipes[0].Ingredients) != 1 || recipes[0].Ingredients[0].Name != "wood" || recipes[0].Ingredients[0].LocalisedName != "Wood" {
 		t.Errorf("ingredients = %+v", recipes[0].Ingredients)
 	}
-	if len(recipes[0].Products) != 1 || recipes[0].Products[0].Name != "wood" {
+	if len(recipes[0].Products) != 1 || recipes[0].Products[0].Name != "wood" || recipes[0].Products[0].LocalisedName != "Wood" {
 		t.Errorf("products = %+v", recipes[0].Products)
 	}
 }
@@ -105,13 +111,17 @@ func TestGetMachinesByCategory(t *testing.T) {
 		t.Fatalf("status = %d", res.Code)
 	}
 	var machines []struct {
-		Name string `json:"name"`
+		Name          string `json:"name"`
+		LocalisedName string `json:"localised_name"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &machines); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(machines) != 1 || machines[0].Name != "assembling-machine-1" {
 		t.Fatalf("crafting machines = %+v", machines)
+	}
+	if machines[0].LocalisedName != "Assembling machine 1 (Legacy)" {
+		t.Errorf("crafting machine localised_name = %q, want Assembling machine 1 (Legacy)", machines[0].LocalisedName)
 	}
 
 	res = httptest.NewRecorder()
@@ -186,26 +196,28 @@ func TestGetItemsAndFluids(t *testing.T) {
 	res := httptest.NewRecorder()
 	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/items", nil))
 	var items []struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
+		Name          string `json:"name"`
+		Type          string `json:"type"`
+		LocalisedName string `json:"localised_name"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &items); err != nil {
 		t.Fatalf("items: %v", err)
 	}
-	if len(items) != 1 || items[0].Name != "wood" {
+	if len(items) != 1 || items[0].Name != "wood" || items[0].LocalisedName != "Wood" {
 		t.Fatalf("items = %+v", items)
 	}
 
 	res = httptest.NewRecorder()
 	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/fluids", nil))
 	var fluids []struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
+		Name          string `json:"name"`
+		Type          string `json:"type"`
+		LocalisedName string `json:"localised_name"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &fluids); err != nil {
 		t.Fatalf("fluids: %v", err)
 	}
-	if len(fluids) != 1 || fluids[0].Name != "crude-oil" || fluids[0].Type != "fluid" {
+	if len(fluids) != 1 || fluids[0].Name != "crude-oil" || fluids[0].Type != "fluid" || fluids[0].LocalisedName != "Crude oil" {
 		t.Fatalf("fluids = %+v", fluids)
 	}
 }

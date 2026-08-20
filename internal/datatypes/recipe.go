@@ -47,11 +47,7 @@ func (r *Recipe) UnmarshalJSON(b []byte) error {
 		mainProduct = nil
 	}
 	*r = Recipe{
-		Entity: Entity{
-			Name:        raw.Name,
-			Type:        raw.Type,
-			EntityOrder: raw.Order,
-		},
+		Entity:         newEntity(raw.Name, raw.Type, raw.Order, b),
 		EnergyRequired: raw.EnergyRequired,
 		Category:       raw.Category,
 		MainProduct:    mainProduct,

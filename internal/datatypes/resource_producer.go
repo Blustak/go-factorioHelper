@@ -48,11 +48,7 @@ func (p *ResourceProducer) UnmarshalJSON(b []byte) error {
 		produced = raw.FluidBox.Filter
 	}
 	*p = ResourceProducer{
-		Entity: Entity{
-			Name:        raw.Name,
-			Type:        raw.Type,
-			EntityOrder: raw.Order,
-		},
+		Entity:             newEntity(raw.Name, raw.Type, raw.Order, b),
 		ResourceCategories: raw.ResourceCategories,
 		MiningSpeed:        raw.MiningSpeed,
 		PumpingSpeed:       raw.PumpingSpeed,

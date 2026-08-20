@@ -89,7 +89,7 @@ func (q *Queries) GetAllResourceProducerValues(ctx context.Context) ([]ResourceP
 }
 
 const getAllResourceProducers = `-- name: GetAllResourceProducers :many
-SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order
+SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order, localised_name
 FROM resource_producers
 LEFT JOIN entities
 ON resource_producers.entity_id = entities.id
@@ -108,6 +108,7 @@ type GetAllResourceProducersRow struct {
 	Name               sql.NullString
 	PrototypeType      sql.NullString
 	EntityOrder        sql.NullString
+	LocalisedName      sql.NullString
 }
 
 func (q *Queries) GetAllResourceProducers(ctx context.Context) ([]GetAllResourceProducersRow, error) {
@@ -132,6 +133,7 @@ func (q *Queries) GetAllResourceProducers(ctx context.Context) ([]GetAllResource
 			&i.Name,
 			&i.PrototypeType,
 			&i.EntityOrder,
+			&i.LocalisedName,
 		); err != nil {
 			return nil, err
 		}
@@ -147,7 +149,7 @@ func (q *Queries) GetAllResourceProducers(ctx context.Context) ([]GetAllResource
 }
 
 const getResourceProducerByEntityID = `-- name: GetResourceProducerByEntityID :one
-SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order
+SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order, localised_name
 FROM resource_producers
 LEFT JOIN entities
 ON resource_producers.entity_id = entities.id
@@ -167,6 +169,7 @@ type GetResourceProducerByEntityIDRow struct {
 	Name               sql.NullString
 	PrototypeType      sql.NullString
 	EntityOrder        sql.NullString
+	LocalisedName      sql.NullString
 }
 
 func (q *Queries) GetResourceProducerByEntityID(ctx context.Context, id int64) (GetResourceProducerByEntityIDRow, error) {
@@ -185,12 +188,13 @@ func (q *Queries) GetResourceProducerByEntityID(ctx context.Context, id int64) (
 		&i.Name,
 		&i.PrototypeType,
 		&i.EntityOrder,
+		&i.LocalisedName,
 	)
 	return i, err
 }
 
 const getResourceProducerByName = `-- name: GetResourceProducerByName :one
-SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order
+SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order, localised_name
 FROM resource_producers
 LEFT JOIN entities
 ON resource_producers.entity_id = entities.id
@@ -210,6 +214,7 @@ type GetResourceProducerByNameRow struct {
 	Name               sql.NullString
 	PrototypeType      sql.NullString
 	EntityOrder        sql.NullString
+	LocalisedName      sql.NullString
 }
 
 func (q *Queries) GetResourceProducerByName(ctx context.Context, name string) (GetResourceProducerByNameRow, error) {
@@ -228,12 +233,13 @@ func (q *Queries) GetResourceProducerByName(ctx context.Context, name string) (G
 		&i.Name,
 		&i.PrototypeType,
 		&i.EntityOrder,
+		&i.LocalisedName,
 	)
 	return i, err
 }
 
 const getResourceProducerByResourceProducerID = `-- name: GetResourceProducerByResourceProducerID :one
-SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order
+SELECT resource_producers.id, entity_id, resource_categories, mining_speed, pumping_speed, produced_fluid, energy_source, energy_usage, entities.id, name, prototype_type, entity_order, localised_name
 FROM resource_producers
 LEFT JOIN entities
 ON resource_producers.entity_id = entities.id
@@ -253,6 +259,7 @@ type GetResourceProducerByResourceProducerIDRow struct {
 	Name               sql.NullString
 	PrototypeType      sql.NullString
 	EntityOrder        sql.NullString
+	LocalisedName      sql.NullString
 }
 
 func (q *Queries) GetResourceProducerByResourceProducerID(ctx context.Context, id int64) (GetResourceProducerByResourceProducerIDRow, error) {
@@ -271,6 +278,7 @@ func (q *Queries) GetResourceProducerByResourceProducerID(ctx context.Context, i
 		&i.Name,
 		&i.PrototypeType,
 		&i.EntityOrder,
+		&i.LocalisedName,
 	)
 	return i, err
 }

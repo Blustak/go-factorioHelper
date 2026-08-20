@@ -41,6 +41,27 @@
     return state.items.concat(state.fluids);
   }
 
+  function labelOf(obj) {
+    if (!obj) return "";
+    return obj.localised_name || obj.name || "";
+  }
+
+  function recipeLabel(name) {
+    return labelOf(recipeByName(name)) || name || "";
+  }
+
+  function commodityLabel(name, type) {
+    const c = commodities().find((x) => x.name === name && x.type === (type || "item"));
+    return labelOf(c) || name || "";
+  }
+
+  function matchesQuery(r, q) {
+    if (!q) return true;
+    const name = (r.name || "").toLowerCase();
+    const display = (r.localised_name || "").toLowerCase();
+    return name.includes(q) || display.includes(q);
+  }
+
   function portsFor(node) {
     if (node.kind === "recipe") {
       const r = recipeByName(node.recipe);
@@ -50,6 +71,7 @@
         dir: "in",
         name: c.name,
         type: c.type || "item",
+        label: labelOf(c),
         required: true,
       }));
       const outs = (r.products || []).map((c, i) => ({
@@ -57,15 +79,17 @@
         dir: "out",
         name: c.name,
         type: c.type || "item",
+        label: labelOf(c),
         required: false,
       }));
       return ins.concat(outs);
     }
     const type = node.prototype_type || "item";
+    const itemLabel = commodityLabel(node.item_name, type);
     if (node.kind === "source") {
-      return [{ id: "out:0", dir: "out", name: node.item_name, type, required: false }];
+      return [{ id: "out:0", dir: "out", name: node.item_name, type, label: itemLabel, required: false }];
     }
-    return [{ id: "in:0", dir: "in", name: node.item_name, type, required: true }];
+    return [{ id: "in:0", dir: "in", name: node.item_name, type, label: itemLabel, required: true }];
   }
 
   function pruneEdges() {
@@ -148,8 +172,8 @@
     const q = (recipeSearch.value || "").toLowerCase();
     recipeList.replaceChildren();
     for (const r of state.recipes) {
-      if (q && !r.name.toLowerCase().includes(q)) continue;
-      const btn = el("button", { type: "button", text: r.name });
+      if (!matchesQuery(r, q)) continue;
+      const btn = el("button", { type: "button", text: labelOf(r) });
       btn.addEventListener("click", () => addRecipe(r.name));
       recipeList.append(el("li", {}, btn));
     }
@@ -232,8 +256,8 @@
   }
 
   function nodeTitle(node) {
-    if (node.kind === "recipe") return node.recipe || "recipe";
-    return node.item_name || node.kind;
+    if (node.kind === "recipe") return recipeLabel(node.recipe) || "recipe";
+    return commodityLabel(node.item_name, node.prototype_type) || node.item_name || node.kind;
   }
 
   function machineSelect(node) {
@@ -242,7 +266,7 @@
     const sel = el("select");
     sel.append(el("option", { value: "", text: "(none)" }));
     for (const m of machinesFor(r ? r.category : "")) {
-      const opt = el("option", { value: m.name, text: m.name });
+      const opt = el("option", { value: m.name, text: labelOf(m) });
       if (m.name === node.machine) opt.selected = true;
       sel.append(opt);
     }
@@ -259,7 +283,7 @@
     const sel = el("select");
     for (const c of commodities()) {
       const value = c.type + ":" + c.name;
-      const opt = el("option", { value, text: c.name + " (" + c.type + ")" });
+      const opt = el("option", { value, text: labelOf(c) + " (" + c.type + ")" });
       if (c.name === node.item_name && c.type === (node.prototype_type || "item")) {
         opt.selected = true;
       }
@@ -288,7 +312,7 @@
         dataset: { node: node.id, port: p.id, dir: p.dir },
       });
       const dot = el("span", { className: "dot" });
-      const label = el("span", { text: p.name || p.id });
+      const label = el("span", { text: p.label || p.name || p.id });
       row.append(dot, label);
       if (p.dir === "out" && outgoingCount(node.id, p.id) === 0) {
         row.classList.add("waste");

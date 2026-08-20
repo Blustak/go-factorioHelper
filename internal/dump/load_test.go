@@ -66,7 +66,17 @@ func TestLoadFixture(t *testing.T) {
 		t.Fatalf("GetAllEntities: %v", err)
 	}
 	var sawFurnace, sawDrill bool
+	wantLocalised := map[string]string{
+		"recipe:wood": "Wood",
+		"item:wood":   "Wood",
+		"assembling-machine:assembling-machine-1": "Assembling machine 1 (Legacy)",
+		"furnace:stone-furnace":                   "Stone furnace",
+	}
 	for _, ent := range ents {
+		key := ent.PrototypeType + ":" + ent.Name
+		if want, ok := wantLocalised[key]; ok && ent.LocalisedName != want {
+			t.Errorf("%s localised_name = %q, want %q", key, ent.LocalisedName, want)
+		}
 		if ent.PrototypeType == "furnace" && ent.Name == "stone-furnace" {
 			sawFurnace = true
 		}
