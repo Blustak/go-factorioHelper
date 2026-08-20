@@ -257,3 +257,63 @@ main {
 .port.out.waste .dot { background: var(--waste); }
 .port.error .dot { background: var(--error); }
 .port.error { color: var(--error); }
+
+#drop-menu {
+  position: absolute;
+  z-index: 5;
+  min-width: 200px;
+  max-width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px #0008;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+#drop-menu > button {
+  width: 100%;
+  text-align: left;
+}
+
+#drop-menu .drop-recipes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+#drop-menu .drop-recipes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  max-height: 220px;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+}
+
+#drop-menu .drop-recipes li {
+  margin: 0;
+}
+
+#drop-menu .drop-recipes button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--card-border);
+  background: transparent;
+}
+
+#drop-menu .drop-recipes button:hover {
+  background: #3a332c;
+}
+
+#drop-menu .drop-recipes .empty {
+  padding: 0.45rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}

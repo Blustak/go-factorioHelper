@@ -10,6 +10,7 @@
     seq: 1,
     draggingNode: null,
     wiring: null,
+    dropMenu: false,
     validateTimer: 0,
   };
 
@@ -60,6 +61,36 @@
     const name = (r.name || "").toLowerCase();
     const display = (r.localised_name || "").toLowerCase();
     return name.includes(q) || display.includes(q);
+  }
+
+  function commodityType(type) {
+    return type || "item";
+  }
+
+  function commodityMatches(c, name, type) {
+    return c && c.name === name && commodityType(c.type) === commodityType(type);
+  }
+
+  function recipesProducing(name, type) {
+    return state.recipes.filter((r) => (r.products || []).some((p) => commodityMatches(p, name, type)));
+  }
+
+  function recipesConsuming(name, type) {
+    return state.recipes.filter((r) => (r.ingredients || []).some((p) => commodityMatches(p, name, type)));
+  }
+
+  function matchingPort(node, dir, name, type) {
+    return portsFor(node).find((p) => p.dir === dir && commodityMatches(p, name, type));
+  }
+
+  function recipeNodeFields(name) {
+    const r = recipeByName(name);
+    const machines = r ? machinesFor(r.category) : [];
+    return {
+      kind: "recipe",
+      recipe: name,
+      machine: machines[0] ? machines[0].name : "",
+    };
   }
 
   function portsFor(node) {
@@ -180,13 +211,7 @@
   }
 
   function addRecipe(name) {
-    const r = recipeByName(name);
-    const machines = r ? machinesFor(r.category) : [];
-    addNode({
-      kind: "recipe",
-      recipe: name,
-      machine: machines[0] ? machines[0].name : "",
-    });
+    addNode(recipeNodeFields(name));
   }
 
   function addIO(kind) {
@@ -198,7 +223,7 @@
     });
   }
 
-  function addNode(partial) {
+  function makeNode(partial) {
     const n = Object.assign({
       id: nextId("n"),
       x: 48 + (state.graph.nodes.length % 8) * 28,
@@ -206,8 +231,50 @@
     }, partial);
     state.graph.nodes.push(n);
     state.selected = n.id;
+    return n;
+  }
+
+  function addNode(partial) {
+    const n = makeNode(partial);
     render();
     scheduleValidate();
+    return n;
+  }
+
+  function connectEdge(fromNode, fromPort, toNode, toPort) {
+    const exists = state.graph.edges.some((e) =>
+      e.from_node === fromNode && e.from_port === fromPort &&
+      e.to_node === toNode && e.to_port === toPort
+    );
+    if (exists) return;
+    state.graph.edges.push({
+      id: nextId("e"),
+      from_node: fromNode,
+      from_port: fromPort,
+      to_node: toNode,
+      to_port: toPort,
+    });
+  }
+
+  function placeConnectedNode(partial, wiring) {
+    const n = makeNode(Object.assign({
+      x: Math.max(0, wiring.x),
+      y: Math.max(0, wiring.y),
+    }, partial));
+    const wantDir = wiring.port.dir === "out" ? "in" : "out";
+    const newPort = matchingPort(n, wantDir, wiring.port.name, wiring.port.type);
+    if (newPort) {
+      if (wiring.port.dir === "out") {
+        connectEdge(wiring.node.id, wiring.port.id, n.id, newPort.id);
+      } else {
+        connectEdge(n.id, newPort.id, wiring.node.id, wiring.port.id);
+      }
+    }
+    closeDropMenu();
+    state.wiring = null;
+    render();
+    scheduleValidate();
+    return n;
   }
 
   function render() {
@@ -371,8 +438,9 @@
     if (ev.button !== 0) return;
     ev.preventDefault();
     ev.stopPropagation();
+    closeDropMenu();
     const pt = canvasPoint(ev);
-    state.wiring = { node, port, x: pt.x, y: pt.y };
+    state.wiring = { node, port, x: pt.x, y: pt.y, originX: pt.x, originY: pt.y };
     drawWires();
   }
 
@@ -430,13 +498,22 @@
 
   function finishWire(ev) {
     const wiring = state.wiring;
-    if (!wiring) return;
-    state.wiring = null;
+    if (!wiring || state.dropMenu) return;
     const target = ev.target.closest && ev.target.closest(".port");
     if (!target) {
-      drawWires();
+      const dist = Math.hypot(
+        wiring.x - (wiring.originX || wiring.x),
+        wiring.y - (wiring.originY || wiring.y)
+      );
+      if (dist < 8) {
+        state.wiring = null;
+        drawWires();
+        return;
+      }
+      openDropMenu(wiring);
       return;
     }
+    state.wiring = null;
     const from = wiring.port.dir === "out" ? wiring : {
       node: { id: target.dataset.node },
       port: { id: target.dataset.port, dir: target.dataset.dir },
@@ -449,21 +526,99 @@
       drawWires();
       return;
     }
-    const exists = state.graph.edges.some((e) =>
-      e.from_node === from.node.id && e.from_port === from.port.id &&
-      e.to_node === to.node.id && e.to_port === to.port.id
-    );
-    if (!exists) {
-      state.graph.edges.push({
-        id: nextId("e"),
-        from_node: from.node.id,
-        from_port: from.port.id,
-        to_node: to.node.id,
-        to_port: to.port.id,
-      });
-    }
+    connectEdge(from.node.id, from.port.id, to.node.id, to.port.id);
     render();
     scheduleValidate();
+  }
+
+  function openDropMenu(wiring) {
+    closeDropMenu();
+    state.dropMenu = true;
+    const fromIn = wiring.port.dir === "in";
+    const menu = el("div", { id: "drop-menu", role: "menu" });
+    menu.style.left = wiring.x + "px";
+    menu.style.top = wiring.y + "px";
+
+    const ioBtn = el("button", {
+      type: "button",
+      role: "menuitem",
+      text: fromIn ? "Add source" : "Add sink",
+    });
+    ioBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      placeConnectedNode({
+        kind: fromIn ? "source" : "sink",
+        item_name: wiring.port.name,
+        prototype_type: commodityType(wiring.port.type),
+      }, wiring);
+    });
+
+    const recipeBtn = el("button", { type: "button", role: "menuitem", text: "Add recipe" });
+    recipeBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      showDropRecipePicker(menu, wiring);
+    });
+
+    menu.append(ioBtn, recipeBtn);
+    menu.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    menu.addEventListener("mousedown", (ev) => ev.stopPropagation());
+    canvas.append(menu);
+  }
+
+  function showDropRecipePicker(menu, wiring) {
+    if (menu.querySelector(".drop-recipes")) return;
+    const name = wiring.port.name;
+    const type = commodityType(wiring.port.type);
+    const recipes = wiring.port.dir === "in"
+      ? recipesProducing(name, type)
+      : recipesConsuming(name, type);
+
+    const picker = el("div", { className: "drop-recipes" });
+    const search = el("input", {
+      type: "search",
+      placeholder: "Search recipes…",
+      autocomplete: "off",
+    });
+    const list = el("ul");
+
+    function renderDropRecipes() {
+      const q = (search.value || "").toLowerCase();
+      list.replaceChildren();
+      let shown = 0;
+      for (const r of recipes) {
+        if (!matchesQuery(r, q)) continue;
+        shown += 1;
+        const btn = el("button", { type: "button", text: labelOf(r) });
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          placeConnectedNode(recipeNodeFields(r.name), wiring);
+        });
+        list.append(el("li", {}, btn));
+      }
+      if (!shown) {
+        list.append(el("li", { className: "empty", text: "No matching recipes" }));
+      }
+    }
+
+    search.addEventListener("input", renderDropRecipes);
+    picker.append(search, list);
+    menu.append(picker);
+    renderDropRecipes();
+    search.focus();
+  }
+
+  function closeDropMenu() {
+    const menu = document.getElementById("drop-menu");
+    if (menu) menu.remove();
+    state.dropMenu = false;
+  }
+
+  function cancelWiring() {
+    closeDropMenu();
+    if (state.wiring) {
+      state.wiring = null;
+      drawWires();
+    }
   }
 
   function el(tag, attrs, ...children) {
@@ -537,7 +692,7 @@
       }
       drawWires();
     }
-    if (state.wiring) {
+    if (state.wiring && !state.dropMenu) {
       const pt = canvasPoint(ev);
       state.wiring.x = pt.x;
       state.wiring.y = pt.y;
@@ -549,18 +704,25 @@
       state.draggingNode = null;
       for (const h of nodesEl.querySelectorAll("header")) h.style.cursor = "";
     }
-    if (state.wiring) finishWire(ev);
+    if (state.wiring && !state.dropMenu) finishWire(ev);
+  });
+  window.addEventListener("pointerdown", (ev) => {
+    if (!state.dropMenu) return;
+    const menu = document.getElementById("drop-menu");
+    if (menu && menu.contains(ev.target)) return;
+    cancelWiring();
   });
   window.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && (state.dropMenu || state.wiring)) {
+      ev.preventDefault();
+      cancelWiring();
+      return;
+    }
     const tag = (ev.target && ev.target.tagName) || "";
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
     if (ev.key === "Delete" || ev.key === "Backspace") {
       ev.preventDefault();
       deleteSelected();
-    }
-    if (ev.key === "Escape") {
-      state.wiring = null;
-      drawWires();
     }
   });
   canvas.addEventListener("mousedown", (ev) => {
