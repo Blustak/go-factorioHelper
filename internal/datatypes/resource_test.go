@@ -35,6 +35,9 @@ func TestResourceUnmarshalLegacyResult(t *testing.T) {
 	if res.MiningTime == nil || *res.MiningTime != 1 {
 		t.Errorf("MiningTime = %v, want 1", res.MiningTime)
 	}
+	if res.Category == nil || *res.Category != DefaultResourceCategory {
+		t.Errorf("Category = %v, want %q", res.Category, DefaultResourceCategory)
+	}
 	if len(res.Minable.Results) != 1 || res.Minable.Results[0].Name != "coal" {
 		t.Errorf("Results = %+v, want coal product", res.Minable.Results)
 	}
@@ -91,6 +94,29 @@ func TestResourceAddGetRoundTripWithFluid(t *testing.T) {
 	}
 	if !rowsEqual(got, inserted) {
 		t.Errorf("GetFromDB() = %+v, want %+v", got, inserted)
+	}
+}
+
+func TestResourceCategoryExplicitAndPersisted(t *testing.T) {
+	cfg := testState(t)
+	var res Resource
+	if err := json.Unmarshal([]byte(`{
+		"type": "resource",
+		"name": "crude-oil",
+		"category": "basic-fluid",
+		"minable": {"mining_time": 1, "results": [{"type": "fluid", "name": "crude-oil", "amount": 10}]}
+	}`), &res); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if res.Category == nil || *res.Category != "basic-fluid" {
+		t.Errorf("Category = %v, want basic-fluid", res.Category)
+	}
+	inserted, err := res.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB: %v", err)
+	}
+	if !inserted.Category.Valid || inserted.Category.String != "basic-fluid" {
+		t.Errorf("Category = %+v, want basic-fluid", inserted.Category)
 	}
 }
 

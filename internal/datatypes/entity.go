@@ -12,7 +12,7 @@ import (
 )
 
 type DatadumpDatatype interface {
-	Entity | Item | Fluid | Resource | Recipe | AssemblyMachine
+	Entity | Item | Fluid | Resource | Recipe | AssemblyMachine | ResourceProducer
 }
 
 type DatatypeEntry[U interface {
@@ -21,7 +21,8 @@ type DatatypeEntry[U interface {
 		database.Fluid |
 		database.Resource |
 		database.Recipe |
-		database.AssemblyMachine
+		database.AssemblyMachine |
+		database.ResourceProducer
 }] interface {
 	json.Unmarshaler
 	AddToDB(cfg *config.State) (U, error)
@@ -134,12 +135,13 @@ func (e *Entity) UnmarshalJSON(bytes []byte) error {
 }
 
 var (
-	_ DatatypeEntry[database.Entity]          = (*Entity)(nil)
-	_ DatatypeEntry[database.Item]            = (*Item)(nil)
-	_ DatatypeEntry[database.Fluid]           = (*Fluid)(nil)
-	_ DatatypeEntry[database.Resource]        = (*Resource)(nil)
-	_ DatatypeEntry[database.Recipe]          = (*Recipe)(nil)
-	_ DatatypeEntry[database.AssemblyMachine] = (*AssemblyMachine)(nil)
+	_ DatatypeEntry[database.Entity]           = (*Entity)(nil)
+	_ DatatypeEntry[database.Item]             = (*Item)(nil)
+	_ DatatypeEntry[database.Fluid]            = (*Fluid)(nil)
+	_ DatatypeEntry[database.Resource]         = (*Resource)(nil)
+	_ DatatypeEntry[database.Recipe]           = (*Recipe)(nil)
+	_ DatatypeEntry[database.AssemblyMachine]  = (*AssemblyMachine)(nil)
+	_ DatatypeEntry[database.ResourceProducer] = (*ResourceProducer)(nil)
 )
 
 func (e *Entity) GetEntityID(cfg *config.State) (int64, error) {

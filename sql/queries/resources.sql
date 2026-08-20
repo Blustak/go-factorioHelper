@@ -1,8 +1,8 @@
 -- name: AddResource :one
 INSERT INTO resources(
-  entity_id, mining_time, results, required_fluid
+  entity_id, mining_time, results, required_fluid, category
 ) VALUES (
-  @entity_id, @mining_time, @results, @required_fluid
+  @entity_id, @mining_time, @results, @required_fluid, @category
 ) RETURNING *;
 
 -- name: GetAllResources :many
@@ -40,6 +40,7 @@ UPDATE resources
 SET entity_id = @entity_id,
 mining_time = @mining_time,
 results = @results,
-required_fluid = @required_fluid
+required_fluid = @required_fluid,
+category = @category
 WHERE id = @id
 RETURNING *;

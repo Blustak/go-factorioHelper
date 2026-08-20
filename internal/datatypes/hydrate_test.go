@@ -75,6 +75,35 @@ func TestAssemblyMachineFromDBDecodesCategories(t *testing.T) {
 	}
 }
 
+func TestResourceProducerFromDBDecodesCategories(t *testing.T) {
+	cfg := testState(t)
+	var producer ResourceProducer
+	if err := json.Unmarshal([]byte(`{
+		"type": "mining-drill",
+		"name": "electric-mining-drill",
+		"resource_categories": ["basic-solid", "hard-solid"],
+		"mining_speed": 0.5,
+		"energy_usage": "90kW"
+	}`), &producer); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	inserted, err := producer.AddToDB(cfg)
+	if err != nil {
+		t.Fatalf("AddToDB: %v", err)
+	}
+
+	got, err := ResourceProducerFromDB(producer.Name, producer.Type, toNullString(producer.EntityOrder), inserted)
+	if err != nil {
+		t.Fatalf("ResourceProducerFromDB: %v", err)
+	}
+	if len(got.ResourceCategories) != 2 || got.ResourceCategories[0] != "basic-solid" {
+		t.Errorf("ResourceCategories = %v", got.ResourceCategories)
+	}
+	if got.MiningSpeed == nil || *got.MiningSpeed != 0.5 {
+		t.Errorf("MiningSpeed = %v", got.MiningSpeed)
+	}
+}
+
 func TestRecipeFromDBRequiresName(t *testing.T) {
 	_, err := RecipeFromDB("", "recipe", toNullString(nil), database.Recipe{ID: 1})
 	if err == nil {

@@ -29,11 +29,21 @@ type Machine struct {
 	CraftingSpeed      *float64 `json:"crafting_speed,omitempty"`
 }
 
+type Producer struct {
+	Name               string   `json:"name"`
+	Type               string   `json:"type"`
+	ResourceCategories []string `json:"resource_categories"`
+	MiningSpeed        *float64 `json:"mining_speed,omitempty"`
+	PumpingSpeed       *float64 `json:"pumping_speed,omitempty"`
+	ProducedFluid      *string  `json:"produced_fluid,omitempty"`
+}
+
 type Catalog struct {
-	Recipes  []Recipe    `json:"recipes"`
-	Items    []Commodity `json:"items"`
-	Fluids   []Commodity `json:"fluids"`
-	Machines []Machine   `json:"machines"`
+	Recipes   []Recipe    `json:"recipes"`
+	Items     []Commodity `json:"items"`
+	Fluids    []Commodity `json:"fluids"`
+	Machines  []Machine   `json:"machines"`
+	Producers []Producer  `json:"producers"`
 
 	recipeByName  map[string]Recipe
 	machineByName map[string]Machine
@@ -51,6 +61,7 @@ func Load(cfg *config.State) (*Catalog, error) {
 		Items:         []Commodity{},
 		Fluids:        []Commodity{},
 		Machines:      []Machine{},
+		Producers:     []Producer{},
 		recipeByName:  map[string]Recipe{},
 		machineByName: map[string]Machine{},
 		commodities:   map[string]struct{}{},
@@ -59,6 +70,9 @@ func Load(cfg *config.State) (*Catalog, error) {
 		return nil, err
 	}
 	if err := c.loadMachines(cfg); err != nil {
+		return nil, err
+	}
+	if err := c.loadProducers(cfg); err != nil {
 		return nil, err
 	}
 	if err := c.loadItems(cfg); err != nil {
@@ -144,6 +158,54 @@ func (c *Catalog) loadMachines(cfg *config.State) error {
 		c.machineByName[dto.Name] = dto
 	}
 	sort.Slice(c.Machines, func(i, j int) bool { return c.Machines[i].Name < c.Machines[j].Name })
+	return nil
+}
+
+func (c *Catalog) loadProducers(cfg *config.State) error {
+	rows, err := cfg.DB.GetAllResourceProducers(cfg.CTX)
+	if err != nil {
+		return fmt.Errorf("list resource producers: %w", err)
+	}
+	for _, row := range rows {
+		if !row.Name.Valid {
+			return fmt.Errorf("resource producer %d has no entity name", row.ID)
+		}
+		dbRow := database.ResourceProducer{
+			ID:                 row.ID,
+			EntityID:           row.EntityID,
+			ResourceCategories: row.ResourceCategories,
+			MiningSpeed:        row.MiningSpeed,
+			PumpingSpeed:       row.PumpingSpeed,
+			ProducedFluid:      row.ProducedFluid,
+			EnergySource:       row.EnergySource,
+			EnergyUsage:        row.EnergyUsage,
+		}
+		p, err := datatypes.ResourceProducerFromDB(row.Name.String, row.PrototypeType.String, row.EntityOrder, dbRow)
+		if err != nil {
+			return err
+		}
+		cats := p.ResourceCategories
+		if cats == nil {
+			cats = []string{}
+		}
+		dto := Producer{
+			Name:               p.Name,
+			Type:               p.Type,
+			ResourceCategories: cats,
+			MiningSpeed:        p.MiningSpeed,
+			PumpingSpeed:       p.PumpingSpeed,
+		}
+		if row.ProducedFluid.Valid {
+			ent, err := cfg.DB.GetEntityByID(cfg.CTX, row.ProducedFluid.Int64)
+			if err != nil {
+				return fmt.Errorf("producer %q produced fluid: %w", p.Name, err)
+			}
+			name := ent.Name
+			dto.ProducedFluid = &name
+		}
+		c.Producers = append(c.Producers, dto)
+	}
+	sort.Slice(c.Producers, func(i, j int) bool { return c.Producers[i].Name < c.Producers[j].Name })
 	return nil
 }
 
@@ -241,6 +303,27 @@ func (c *Catalog) MachinesForCategory(category string) []Machine {
 		for _, cat := range m.CraftingCategories {
 			if cat == category {
 				out = append(out, m)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func (c *Catalog) ProducersForCategory(category string) []Producer {
+	if c == nil {
+		return []Producer{}
+	}
+	if category == "" {
+		out := make([]Producer, len(c.Producers))
+		copy(out, c.Producers)
+		return out
+	}
+	out := []Producer{}
+	for _, p := range c.Producers {
+		for _, cat := range p.ResourceCategories {
+			if cat == category {
+				out = append(out, p)
 				break
 			}
 		}

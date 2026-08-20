@@ -65,7 +65,63 @@
   "furnace": {
     "stone-furnace": {
       "type": "furnace",
-      "name": "stone-furnace"
+      "name": "stone-furnace",
+      "crafting_categories": ["smelting"],
+      "crafting_speed": 1,
+      "energy_source": {
+        "type": "burner",
+        "fuel_categories": ["chemical"],
+        "effectivity": 1,
+        "fuel_inventory_size": 1,
+        "emissions_per_minute": {"pollution": 2}
+      },
+      "energy_usage": "90kW"
+    }
+  },
+  "mining-drill": {
+    "electric-mining-drill": {
+      "type": "mining-drill",
+      "name": "electric-mining-drill",
+      "resource_categories": ["basic-solid"],
+      "mining_speed": 0.5,
+      "energy_source": {
+        "type": "electric",
+        "usage_priority": "secondary-input"
+      },
+      "energy_usage": "90kW"
+    }
+  },
+  "offshore-pump": {
+    "offshore-pump": {
+      "type": "offshore-pump",
+      "name": "offshore-pump",
+      "pumping_speed": 20,
+      "fluid_box": {
+        "filter": "water"
+      },
+      "energy_source": {
+        "type": "electric",
+        "usage_priority": "secondary-input"
+      },
+      "energy_usage": "60kW"
+    }
+  },
+  "pump": {
+    "pump": {
+      "type": "pump",
+      "name": "pump",
+      "pumping_speed": 200,
+      "energy_source": {
+        "type": "electric",
+        "usage_priority": "secondary-input"
+      },
+      "energy_usage": "30kW"
+    }
+  },
+  "lab": {
+    "lab": {
+      "type": "lab",
+      "name": "lab"
     }
   }
 }

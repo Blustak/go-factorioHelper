@@ -15,15 +15,21 @@ var knownTypes = map[string]struct{}{
 	"resource":           {},
 	"recipe":             {},
 	"assembling-machine": {},
+	"furnace":            {},
+	"mining-drill":       {},
+	"offshore-pump":      {},
+	"pump":               {},
 }
 
 type Stats struct {
-	Items            int
-	Fluids           int
-	Resources        int
-	Recipes          int
-	AssemblyMachines int
-	Skipped          int
+	Items             int
+	Fluids            int
+	Resources         int
+	Recipes           int
+	AssemblyMachines  int
+	Furnaces          int
+	ResourceProducers int
+	Skipped           int
 }
 
 func Load(cfg *config.State, path string) (Stats, error) {
@@ -89,6 +95,28 @@ func Load(cfg *config.State, path string) (Stats, error) {
 			return err
 		}
 		stats.AssemblyMachines = n
+
+		n, err = loadMap(dumpFile["furnace"], "furnace", func(v *datatypes.AssemblyMachine) error {
+			_, err := v.AddToDB(txCfg)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		stats.Furnaces = n
+
+		producers := 0
+		for _, kind := range []string{"mining-drill", "offshore-pump", "pump"} {
+			n, err = loadMap(dumpFile[kind], kind, func(v *datatypes.ResourceProducer) error {
+				_, err := v.AddToDB(txCfg)
+				return err
+			})
+			if err != nil {
+				return err
+			}
+			producers += n
+		}
+		stats.ResourceProducers = producers
 		return nil
 	})
 	if err != nil {

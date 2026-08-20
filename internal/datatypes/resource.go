@@ -10,20 +10,25 @@ import (
 	"github.com/Blustak/go-factorioHelper/internal/database"
 )
 
+// DefaultResourceCategory is Factorio's implicit category when a resource omits one.
+const DefaultResourceCategory = "basic-solid"
+
 type Resource struct {
 	Entity
 	MiningTime    *float64
 	RequiredFluid *string
+	Category      *string
 	Minable       MinableResults
 	resourceEntry *database.Resource
 }
 
 func (r *Resource) UnmarshalJSON(b []byte) error {
 	var raw struct {
-		Name    string  `json:"name"`
-		Type    string  `json:"type"`
-		Order   *string `json:"order"`
-		Minable *struct {
+		Name     string  `json:"name"`
+		Type     string  `json:"type"`
+		Order    *string `json:"order"`
+		Category *string `json:"category"`
+		Minable  *struct {
 			MiningTime    *float64        `json:"mining_time"`
 			Results       json.RawMessage `json:"results"`
 			Result        *string         `json:"result"`
@@ -36,12 +41,18 @@ func (r *Resource) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	category := raw.Category
+	if category == nil || *category == "" {
+		cat := DefaultResourceCategory
+		category = &cat
+	}
 	res := Resource{
 		Entity: Entity{
 			Name:        raw.Name,
 			Type:        raw.Type,
 			EntityOrder: raw.Order,
 		},
+		Category: category,
 	}
 	if raw.Minable != nil {
 		results, err := unmarshalFactorioArray[Product](raw.Minable.Results)
@@ -96,6 +107,7 @@ func (r *Resource) AddToDB(cfg *config.State) (database.Resource, error) {
 		MiningTime:    toNullFloat64(r.MiningTime),
 		Results:       blob,
 		RequiredFluid: required,
+		Category:      toNullString(r.Category),
 	}
 
 	existing, err := cfg.DB.GetResourceByEntityID(cfg.CTX, r.entEntry.ID)
@@ -105,6 +117,7 @@ func (r *Resource) AddToDB(cfg *config.State) (database.Resource, error) {
 			MiningTime:    params.MiningTime,
 			Results:       params.Results,
 			RequiredFluid: params.RequiredFluid,
+			Category:      params.Category,
 			ID:            existing.ID,
 		})
 		if err != nil {
@@ -171,5 +184,6 @@ func resourceFromJoin(row database.GetResourceByEntityIDRow) database.Resource {
 		MiningTime:    row.MiningTime,
 		Results:       row.Results,
 		RequiredFluid: row.RequiredFluid,
+		Category:      row.Category,
 	}
 }

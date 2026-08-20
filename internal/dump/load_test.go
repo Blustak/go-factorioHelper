@@ -52,33 +52,46 @@ func TestLoadFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if stats.Items != 1 || stats.Fluids != 1 || stats.Resources != 1 || stats.Recipes != 1 || stats.AssemblyMachines != 1 {
-		t.Errorf("stats typed = %+v, want 1 of each", stats)
+	if stats.Items != 1 || stats.Fluids != 1 || stats.Resources != 1 || stats.Recipes != 1 || stats.AssemblyMachines != 1 || stats.Furnaces != 1 || stats.ResourceProducers != 3 {
+		t.Errorf("stats typed = %+v, want 1 of each plus 3 producers", stats)
 	}
 	if stats.Skipped != 1 {
 		t.Errorf("Skipped = %d, want 1", stats.Skipped)
 	}
 
-	assertTypedCounts(t, cfg, 1)
+	assertTypedCounts(t, cfg)
 
 	ents, err := cfg.DB.GetAllEntities(cfg.CTX)
 	if err != nil {
 		t.Fatalf("GetAllEntities: %v", err)
 	}
+	var sawFurnace, sawDrill bool
 	for _, ent := range ents {
-		if ent.PrototypeType == "furnace" || ent.Name == "stone-furnace" {
-			t.Fatalf("furnace prototype stored as entity: %+v", ent)
+		if ent.PrototypeType == "furnace" && ent.Name == "stone-furnace" {
+			sawFurnace = true
 		}
+		if ent.PrototypeType == "mining-drill" && ent.Name == "electric-mining-drill" {
+			sawDrill = true
+		}
+		if ent.PrototypeType == "lab" {
+			t.Fatalf("lab prototype stored as entity: %+v", ent)
+		}
+	}
+	if !sawFurnace {
+		t.Fatal("stone-furnace entity missing")
+	}
+	if !sawDrill {
+		t.Fatal("electric-mining-drill entity missing")
 	}
 
 	again, err := Load(cfg, testdataPath(t, "dump.json"))
 	if err != nil {
 		t.Fatalf("Load upsert: %v", err)
 	}
-	if again.Items != 1 || again.Fluids != 1 || again.Resources != 1 || again.Recipes != 1 || again.AssemblyMachines != 1 {
-		t.Errorf("upsert stats typed = %+v, want 1 of each", again)
+	if again.Items != 1 || again.Fluids != 1 || again.Resources != 1 || again.Recipes != 1 || again.AssemblyMachines != 1 || again.Furnaces != 1 || again.ResourceProducers != 3 {
+		t.Errorf("upsert stats typed = %+v, want 1 of each plus 3 producers", again)
 	}
-	assertTypedCounts(t, cfg, 1)
+	assertTypedCounts(t, cfg)
 }
 
 func TestLoadMissingFile(t *testing.T) {
@@ -104,18 +117,20 @@ func TestLoadInvalidJSON(t *testing.T) {
 	}
 }
 
-func assertTypedCounts(t *testing.T, cfg *config.State, want int) {
+func assertTypedCounts(t *testing.T, cfg *config.State) {
 	t.Helper()
 	items, err := cfg.DB.GetAllItemValues(cfg.CTX)
-	assertLen(t, "items", want, items, err)
+	assertLen(t, "items", 1, items, err)
 	fluids, err := cfg.DB.GetAllFluidValues(cfg.CTX)
-	assertLen(t, "fluids", want, fluids, err)
+	assertLen(t, "fluids", 1, fluids, err)
 	resources, err := cfg.DB.GetAllResourceValues(cfg.CTX)
-	assertLen(t, "resources", want, resources, err)
+	assertLen(t, "resources", 1, resources, err)
 	recipes, err := cfg.DB.GetAllRecipeValues(cfg.CTX)
-	assertLen(t, "recipes", want, recipes, err)
+	assertLen(t, "recipes", 1, recipes, err)
 	machines, err := cfg.DB.GetAllAssemblyMachineValues(cfg.CTX)
-	assertLen(t, "assembling machines", want, machines, err)
+	assertLen(t, "assembling machines", 2, machines, err)
+	producers, err := cfg.DB.GetAllResourceProducerValues(cfg.CTX)
+	assertLen(t, "resource producers", 3, producers, err)
 }
 
 func assertLen[T any](t *testing.T, kind string, want int, rows []T, err error) {

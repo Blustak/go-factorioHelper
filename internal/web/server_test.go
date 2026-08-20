@@ -119,8 +119,8 @@ func TestGetMachinesByCategory(t *testing.T) {
 	if err := json.Unmarshal(res.Body.Bytes(), &machines); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(machines) != 0 {
-		t.Fatalf("smelting machines = %+v, want none", machines)
+	if len(machines) != 1 || machines[0].Name != "stone-furnace" {
+		t.Fatalf("smelting machines = %+v, want stone-furnace", machines)
 	}
 }
 
@@ -207,6 +207,58 @@ func TestGetItemsAndFluids(t *testing.T) {
 	}
 	if len(fluids) != 1 || fluids[0].Name != "crude-oil" || fluids[0].Type != "fluid" {
 		t.Fatalf("fluids = %+v", fluids)
+	}
+}
+
+func TestGetProducersByCategory(t *testing.T) {
+	srv := testServer(t)
+
+	res := httptest.NewRecorder()
+	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/producers", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d", res.Code)
+	}
+	var producers []struct {
+		Name               string   `json:"name"`
+		Type               string   `json:"type"`
+		ResourceCategories []string `json:"resource_categories"`
+		ProducedFluid      *string  `json:"produced_fluid"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &producers); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(producers) != 3 {
+		t.Fatalf("producers = %+v, want 3", producers)
+	}
+
+	res = httptest.NewRecorder()
+	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/producers?category=basic-solid", nil))
+	if err := json.Unmarshal(res.Body.Bytes(), &producers); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(producers) != 1 || producers[0].Name != "electric-mining-drill" {
+		t.Fatalf("basic-solid producers = %+v, want electric-mining-drill", producers)
+	}
+
+	foundPump := false
+	res = httptest.NewRecorder()
+	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/producers", nil))
+	if err := json.Unmarshal(res.Body.Bytes(), &producers); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for _, p := range producers {
+		if p.Name == "offshore-pump" {
+			foundPump = true
+			if p.Type != "offshore-pump" {
+				t.Errorf("offshore-pump type = %q", p.Type)
+			}
+			if p.ProducedFluid == nil || *p.ProducedFluid != "water" {
+				t.Errorf("offshore-pump produced_fluid = %v, want water", p.ProducedFluid)
+			}
+		}
+	}
+	if !foundPump {
+		t.Fatal("offshore-pump missing from producers")
 	}
 }
 

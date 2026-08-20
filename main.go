@@ -54,6 +54,8 @@ func run(args []string) int {
 			"resources", stats.Resources,
 			"recipes", stats.Recipes,
 			"assembling_machines", stats.AssemblyMachines,
+			"furnaces", stats.Furnaces,
+			"resource_producers", stats.ResourceProducers,
 			"skipped", stats.Skipped,
 		)
 		return 0

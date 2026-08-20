@@ -86,6 +86,43 @@ func AssemblyMachineFromDB(name, prototypeType string, entityOrder sql.NullStrin
 	}, nil
 }
 
+// ResourceProducerFromDB reconstructs a ResourceProducer from a database row,
+// decoding gob-encoded resource categories and energy source.
+func ResourceProducerFromDB(name, prototypeType string, entityOrder sql.NullString, row database.ResourceProducer) (*ResourceProducer, error) {
+	if name == "" {
+		return nil, fmt.Errorf("resource producer row %d missing entity name", row.ID)
+	}
+	cats, err := gobDecode[[]string](row.ResourceCategories)
+	if err != nil {
+		return nil, fmt.Errorf("producer %q categories: %w", name, err)
+	}
+	var src *EnergySource
+	if len(row.EnergySource) > 0 {
+		decoded, err := gobDecode[EnergySource](row.EnergySource)
+		if err != nil {
+			return nil, fmt.Errorf("producer %q energy source: %w", name, err)
+		}
+		src = &decoded
+	}
+	proto := prototypeType
+	if proto == "" {
+		proto = "mining-drill"
+	}
+	return &ResourceProducer{
+		Entity: Entity{
+			Name:        name,
+			Type:        proto,
+			EntityOrder: fromNullString(entityOrder),
+		},
+		ResourceCategories: cats,
+		MiningSpeed:        fromNullFloat64(row.MiningSpeed),
+		PumpingSpeed:       fromNullFloat64(row.PumpingSpeed),
+		EnergySource:       src,
+		EnergyUsage:        fromNullFloat64(row.EnergyUsage),
+		producerEntry:      &row,
+	}, nil
+}
+
 func normalizeCommodities(ings []Ingredient, results []Product) {
 	for i := range ings {
 		if ings[i].Type == "" {
