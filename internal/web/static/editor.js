@@ -10,6 +10,8 @@
     seq: 1,
     draggingNode: null,
     panning: null,
+    panX: 0,
+    panY: 0,
     wiring: null,
     dropMenu: false,
     validateTimer: 0,
@@ -262,8 +264,8 @@
 
   function placeConnectedNode(partial, wiring) {
     const n = makeNode(Object.assign({
-      x: Math.max(0, wiring.x),
-      y: Math.max(0, wiring.y),
+      x: wiring.x,
+      y: wiring.y,
     }, partial));
     const wantDir = wiring.port.dir === "out" ? "in" : "out";
     const newPort = matchingPort(n, wantDir, wiring.port.name, wiring.port.type);
@@ -312,6 +314,7 @@
     wiresEl.style.height = height;
     wiresEl.setAttribute("width", String(maxX));
     wiresEl.setAttribute("height", String(maxY));
+    applyPan();
   }
 
   function renderNode(node) {
@@ -430,11 +433,18 @@
     }
   }
 
+  function applyPan() {
+    const t = "translate(" + state.panX + "px, " + state.panY + "px)";
+    nodesEl.style.transform = t;
+    wiresEl.style.transform = t;
+    canvas.style.backgroundPosition = state.panX + "px " + state.panY + "px";
+  }
+
   function canvasPoint(ev) {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: ev.clientX - rect.left + canvas.scrollLeft,
-      y: ev.clientY - rect.top + canvas.scrollTop,
+      x: ev.clientX - rect.left - state.panX,
+      y: ev.clientY - rect.top - state.panY,
     };
   }
 
@@ -472,8 +482,8 @@
     const canvasRect = canvas.getBoundingClientRect();
     const r = row.getBoundingClientRect();
     return {
-      x: r.left - canvasRect.left + canvas.scrollLeft + r.width / 2,
-      y: r.top - canvasRect.top + canvas.scrollTop + r.height / 2,
+      x: r.left - canvasRect.left - state.panX + r.width / 2,
+      y: r.top - canvasRect.top - state.panY + r.height / 2,
     };
   }
 
@@ -558,8 +568,8 @@
     state.dropMenu = true;
     const fromIn = wiring.port.dir === "in";
     const menu = el("div", { id: "drop-menu", role: "menu" });
-    menu.style.left = wiring.x + "px";
-    menu.style.top = wiring.y + "px";
+    menu.style.left = (wiring.x + state.panX) + "px";
+    menu.style.top = (wiring.y + state.panY) + "px";
 
     const ioBtn = el("button", {
       type: "button",
@@ -704,19 +714,21 @@
     if (state.panning) {
       const dx = ev.clientX - state.panning.startX;
       const dy = ev.clientY - state.panning.startY;
-      if (!state.panning.active && Math.hypot(dx, dy) < PAN_THRESHOLD) return;
+      const dist = Math.hypot(dx, dy);
+      if (!state.panning.active && dist < PAN_THRESHOLD) return;
       state.panning.active = true;
       canvas.classList.add("panning");
-      canvas.scrollLeft = state.panning.scrollLeft - dx;
-      canvas.scrollTop = state.panning.scrollTop - dy;
+      state.panX = state.panning.startPanX + dx;
+      state.panY = state.panning.startPanY + dy;
+      applyPan();
       return;
     }
     if (state.draggingNode) {
       const node = state.graph.nodes.find((n) => n.id === state.draggingNode.id);
       if (!node) return;
       const pt = canvasPoint(ev);
-      node.x = Math.max(0, pt.x - state.draggingNode.dx);
-      node.y = Math.max(0, pt.y - state.draggingNode.dy);
+      node.x = pt.x - state.draggingNode.dx;
+      node.y = pt.y - state.draggingNode.dy;
       const card = nodesEl.querySelector('.node[data-id="' + cssEscape(node.id) + '"]');
       if (card) {
         card.style.left = node.x + "px";
@@ -768,19 +780,26 @@
     }
   });
   canvas.addEventListener("pointerdown", (ev) => {
+    const empty = ev.target === canvas || ev.target === nodesEl || ev.target === wiresEl;
     if (ev.button !== 0) return;
     if (state.draggingNode || state.wiring || state.dropMenu) return;
-    if (ev.target !== canvas && ev.target !== nodesEl && ev.target !== wiresEl) return;
+    if (!empty) return;
     state.selected = null;
     syncSelection();
     state.panning = {
       startX: ev.clientX,
       startY: ev.clientY,
-      scrollLeft: canvas.scrollLeft,
-      scrollTop: canvas.scrollTop,
+      startPanX: state.panX,
+      startPanY: state.panY,
       active: false,
     };
   });
+  canvas.addEventListener("wheel", (ev) => {
+    ev.preventDefault();
+    state.panX -= ev.deltaX;
+    state.panY -= ev.deltaY;
+    applyPan();
+  }, { passive: false });
   window.addEventListener("resize", syncWorldSize);
 
   loadCatalog()
