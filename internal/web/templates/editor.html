@@ -9,7 +9,7 @@
 <body>
   <aside id="sidebar">
     <h1>Supply chain</h1>
-    <p class="hint">Recipes are nodes. Unconnected outputs are treated as waste.</p>
+    <p class="hint">Input and output nodes are counted in energy analysis. Sources and sinks are not. Unconnected recipe outputs are treated as waste.</p>
     <label class="field">Search recipes
       <input id="recipe-search" type="search" placeholder="iron-gear…" autocomplete="off">
     </label>
@@ -17,6 +17,8 @@
     <div class="actions">
       <button type="button" id="add-source">Add source</button>
       <button type="button" id="add-sink">Add sink</button>
+      <button type="button" id="add-input">Add input</button>
+      <button type="button" id="add-output">Add output</button>
       <button type="button" id="add-boiler">Add boiler</button>
       <button type="button" id="add-generator">Add generator</button>
     </div>
@@ -27,6 +29,7 @@
       </label>
     </div>
     <section id="issues" aria-live="polite"></section>
+    <section id="analysis" aria-live="polite"></section>
   </aside>
   <main>
     <div id="canvas">

@@ -19,6 +19,8 @@
     validateTimer: 0,
   };
 
+  const ELECTRICITY = { name: "electricity", type: "electricity", localised_name: "Electricity" };
+
   const WORLD_PAD = 240;
   const PAN_THRESHOLD = 4;
 
@@ -28,6 +30,7 @@
   const wiresEl = document.getElementById("wires");
   const canvas = document.getElementById("canvas");
   const issuesEl = document.getElementById("issues");
+  const analysisEl = document.getElementById("analysis");
 
   function nextId(prefix) {
     let id;
@@ -68,6 +71,9 @@
   }
 
   function commodityLabel(name, type) {
+    if (name === "electricity" && (type === "electricity" || !type)) {
+      return ELECTRICITY.localised_name;
+    }
     const c = commodities().find((x) => x.name === name && x.type === (type || "item"));
     return labelOf(c) || name || "";
   }
@@ -186,19 +192,31 @@
     }
     if (node.kind === "generator") {
       const g = generatorByName(node.generator);
-      if (!g || !g.input_fluid) return [];
-      return [{
-        id: "in:0",
-        dir: "in",
-        name: g.input_fluid,
-        type: "fluid",
-        label: commodityLabel(g.input_fluid, "fluid"),
-        required: true,
-      }];
+      if (!g) return [];
+      const ports = [];
+      if (g.input_fluid) {
+        ports.push({
+          id: "in:0",
+          dir: "in",
+          name: g.input_fluid,
+          type: "fluid",
+          label: commodityLabel(g.input_fluid, "fluid"),
+          required: true,
+        });
+      }
+      ports.push({
+        id: "out:0",
+        dir: "out",
+        name: ELECTRICITY.name,
+        type: ELECTRICITY.type,
+        label: ELECTRICITY.localised_name,
+        required: false,
+      });
+      return ports;
     }
     const type = node.prototype_type || "item";
     const itemLabel = commodityLabel(node.item_name, type);
-    if (node.kind === "source") {
+    if (node.kind === "source" || node.kind === "input") {
       return [{ id: "out:0", dir: "out", name: node.item_name, type, label: itemLabel, required: false }];
     }
     return [{ id: "in:0", dir: "in", name: node.item_name, type, label: itemLabel, required: true }];
@@ -266,11 +284,80 @@
       });
       state.issues = res.issues || [];
       renderIssues(res.ok);
+      if (res.ok) {
+        const an = await fetchJSON("/api/graph/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(state.graph),
+        });
+        renderAnalysis(an.analysis);
+      } else {
+        renderAnalysis(null);
+      }
       paintValidation();
       drawWires();
     } catch (err) {
       issuesEl.replaceChildren(el("div", { className: "err", text: String(err) }));
+      renderAnalysis(null);
     }
+  }
+
+  function renderAnalysis(analysis) {
+    if (!analysisEl) return;
+    analysisEl.replaceChildren();
+    if (!analysis) return;
+    analysisEl.append(el("h2", { text: "Analysis" }));
+    const rows = [
+      ["Input energy", formatEnergy(analysis.input_energy)],
+      ["Gross output", formatEnergy(analysis.output_gross)],
+      ["Production energy", formatEnergy(analysis.production_energy)],
+      ["Net output", formatEnergy(analysis.output_energy)],
+    ];
+    const dl = el("dl");
+    for (const [label, value] of rows) {
+      dl.append(el("dt", { text: label }), el("dd", { text: value }));
+    }
+    const gainClass = "gain" + (analysis.gain > 0 ? " positive" : analysis.gain < 0 ? " negative" : "");
+    dl.append(el("dt", { text: "Gain / loss" }), el("dd", { className: gainClass, text: formatEnergy(analysis.gain) }));
+    analysisEl.append(dl);
+    if ((analysis.inputs || []).length || (analysis.outputs || []).length) {
+      const list = el("ul", { className: "terms" });
+      for (const t of analysis.inputs || []) {
+        list.append(el("li", { text: "In " + termLabel(t) }));
+      }
+      for (const t of analysis.outputs || []) {
+        list.append(el("li", { text: "Out " + termLabel(t) }));
+      }
+      analysisEl.append(list);
+    }
+    analysisEl.append(el("p", {
+      className: "note",
+      text: "Item and fluid outputs are scaled to 1 unit using recipe amounts. Electricity-only chains start from 1 unit of each input.",
+    }));
+    for (const warn of analysis.warnings || []) {
+      analysisEl.append(el("p", { className: "warn", text: warn }));
+    }
+  }
+
+  function termLabel(t) {
+    const qty = t.quantity == null ? 1 : t.quantity;
+    return (t.item || "") + " × " + trimNum(qty) + " — " + formatEnergy(t.energy);
+  }
+
+  function formatEnergy(j) {
+    const n = Number(j) || 0;
+    const abs = Math.abs(n);
+    const sign = n < 0 ? "-" : "";
+    const v = abs;
+    if (v >= 1e12) return sign + trimNum(v / 1e12) + " TJ";
+    if (v >= 1e9) return sign + trimNum(v / 1e9) + " GJ";
+    if (v >= 1e6) return sign + trimNum(v / 1e6) + " MJ";
+    if (v >= 1e3) return sign + trimNum(v / 1e3) + " kJ";
+    return sign + trimNum(v) + " J";
+  }
+
+  function trimNum(n) {
+    return String(Math.round(n * 100) / 100);
   }
 
   function renderIssues(ok) {
@@ -484,10 +571,18 @@
     return wrap;
   }
 
+  function ioCommodities(node) {
+    const list = commodities().slice();
+    if (node.kind === "sink" || node.kind === "output") {
+      list.push(ELECTRICITY);
+    }
+    return list;
+  }
+
   function itemSelect(node) {
     const wrap = el("label", { className: "field", text: "Item" });
     const sel = el("select");
-    for (const c of commodities()) {
+    for (const c of ioCommodities(node)) {
       const value = c.type + ":" + c.name;
       const opt = el("option", { value, text: labelOf(c) + " (" + c.type + ")" });
       if (c.name === node.item_name && c.type === (node.prototype_type || "item")) {
@@ -685,20 +780,24 @@
     menu.style.left = (wiring.x + state.panX) + "px";
     menu.style.top = (wiring.y + state.panY) + "px";
 
-    const ioBtn = el("button", {
+    const ioSource = el("button", {
       type: "button",
       role: "menuitem",
       text: fromIn ? "Add source" : "Add sink",
     });
-    ioBtn.addEventListener("click", (ev) => {
+    ioSource.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      const cats = wiring.port.fuel_categories || [];
-      const fuel = cats.length ? firstFuelItem(cats) : null;
-      placeConnectedNode({
-        kind: fromIn ? "source" : "sink",
-        item_name: fuel ? fuel.name : wiring.port.name,
-        prototype_type: fuel ? (fuel.type || "item") : commodityType(wiring.port.type),
-      }, wiring);
+      placeIONode(fromIn ? "source" : "sink", wiring);
+    });
+
+    const ioCounted = el("button", {
+      type: "button",
+      role: "menuitem",
+      text: fromIn ? "Add input" : "Add output",
+    });
+    ioCounted.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      placeIONode(fromIn ? "input" : "output", wiring);
     });
 
     const recipeBtn = el("button", { type: "button", role: "menuitem", text: "Add recipe" });
@@ -707,7 +806,7 @@
       showDropRecipePicker(menu, wiring);
     });
 
-    menu.append(ioBtn, recipeBtn);
+    menu.append(ioSource, ioCounted, recipeBtn);
 
     const boilers = prototypesMatching(state.boilers, "boiler", wiring.port.name, wiring.port.type, wiring.port.dir);
     if (boilers.length) {
@@ -731,6 +830,16 @@
     menu.addEventListener("pointerdown", (ev) => ev.stopPropagation());
     menu.addEventListener("mousedown", (ev) => ev.stopPropagation());
     canvas.append(menu);
+  }
+
+  function placeIONode(kind, wiring) {
+    const cats = wiring.port.fuel_categories || [];
+    const fuel = cats.length ? firstFuelItem(cats) : null;
+    placeConnectedNode({
+      kind,
+      item_name: fuel ? fuel.name : wiring.port.name,
+      prototype_type: fuel ? (fuel.type || "item") : commodityType(wiring.port.type),
+    }, wiring);
   }
 
   function showDropRecipePicker(menu, wiring) {
@@ -817,6 +926,8 @@
 
   document.getElementById("add-source").addEventListener("click", () => addIO("source"));
   document.getElementById("add-sink").addEventListener("click", () => addIO("sink"));
+  document.getElementById("add-input").addEventListener("click", () => addIO("input"));
+  document.getElementById("add-output").addEventListener("click", () => addIO("output"));
   document.getElementById("add-boiler").addEventListener("click", addBoiler);
   document.getElementById("add-generator").addEventListener("click", addGenerator);
   recipeSearch.addEventListener("input", renderSidebar);

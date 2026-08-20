@@ -8,8 +8,15 @@ const (
 	KindRecipe    NodeKind = "recipe"
 	KindSource    NodeKind = "source"
 	KindSink      NodeKind = "sink"
+	KindInput     NodeKind = "input"
+	KindOutput    NodeKind = "output"
 	KindBoiler    NodeKind = "boiler"
 	KindGenerator NodeKind = "generator"
+)
+
+const (
+	ElectricityName = "electricity"
+	ElectricityType = "electricity"
 )
 
 type Direction string
@@ -87,7 +94,7 @@ func (n NodeDoc) Ports(cat Catalog) []Port {
 			return nil
 		}
 		return generatorPorts(info)
-	case KindSource, KindSink:
+	case KindSource, KindSink, KindInput, KindOutput:
 		return ioPorts(n.NodeKind, n.ItemName, n.PrototypeType)
 	default:
 		return nil
@@ -157,21 +164,31 @@ func boilerPorts(info BoilerInfo) []Port {
 }
 
 func generatorPorts(info GeneratorInfo) []Port {
-	if info.InputFluid == "" {
-		return nil
+	var ports []Port
+	if info.InputFluid != "" {
+		ports = append(ports, Port{
+			ID:            PortID(DirIn, 0),
+			ItemName:      info.InputFluid,
+			PrototypeType: "fluid",
+			Direction:     DirIn,
+			Required:      true,
+		})
 	}
-	return []Port{{
-		ID:            PortID(DirIn, 0),
-		ItemName:      info.InputFluid,
-		PrototypeType: "fluid",
-		Direction:     DirIn,
-		Required:      true,
-	}}
+	ports = append(ports, Port{
+		ID:            PortID(DirOut, 0),
+		ItemName:      ElectricityName,
+		PrototypeType: ElectricityType,
+		Direction:     DirOut,
+		Required:      false,
+	})
+	return ports
 }
 
 func ioPorts(kind NodeKind, name, protoType string) []Port {
-	protoType = normalizeType(protoType)
-	if kind == KindSource {
+	if !IsElectricity(name, protoType) {
+		protoType = normalizeType(protoType)
+	}
+	if kind == KindSource || kind == KindInput {
 		return []Port{{
 			ID:            PortID(DirOut, 0),
 			ItemName:      name,
@@ -187,6 +204,10 @@ func ioPorts(kind NodeKind, name, protoType string) []Port {
 		Direction:     DirIn,
 		Required:      true,
 	}}
+}
+
+func IsElectricity(name, protoType string) bool {
+	return name == ElectricityName && protoType == ElectricityType
 }
 
 func normalizeType(t string) string {

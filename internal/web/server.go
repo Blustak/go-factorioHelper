@@ -42,6 +42,7 @@ func New(cfg *config.State) (*Server, error) {
 	s.mux.HandleFunc("GET /api/boilers", s.handleBoilers)
 	s.mux.HandleFunc("GET /api/generators", s.handleGenerators)
 	s.mux.HandleFunc("POST /api/graph/validate", s.handleValidate)
+	s.mux.HandleFunc("POST /api/graph/analyze", s.handleAnalyze)
 	return s, nil
 }
 
@@ -87,11 +88,28 @@ func (s *Server) handleGenerators(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
+	g, err := decodeGraph(r)
+	if err != nil {
+		http.Error(w, "invalid graph JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, chain.Validate(g, s.catalog))
+}
+
+func (s *Server) handleAnalyze(w http.ResponseWriter, r *http.Request) {
+	g, err := decodeGraph(r)
+	if err != nil {
+		http.Error(w, "invalid graph JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, chain.Analyze(g, s.catalog))
+}
+
+func decodeGraph(r *http.Request) (chain.Graph, error) {
 	defer r.Body.Close()
 	var g chain.Graph
 	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
-		http.Error(w, "invalid graph JSON: "+err.Error(), http.StatusBadRequest)
-		return
+		return g, err
 	}
 	if g.Nodes == nil {
 		g.Nodes = []chain.NodeDoc{}
@@ -99,7 +117,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 	if g.Edges == nil {
 		g.Edges = []chain.Edge{}
 	}
-	writeJSON(w, chain.Validate(g, s.catalog))
+	return g, nil
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

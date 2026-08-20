@@ -11,8 +11,9 @@ type Issue struct {
 }
 
 type Result struct {
-	OK     bool    `json:"ok"`
-	Issues []Issue `json:"issues"`
+	OK       bool      `json:"ok"`
+	Issues   []Issue   `json:"issues"`
+	Analysis *Analysis `json:"analysis,omitempty"`
 }
 
 func (r Result) okIfClean() Result {
@@ -132,7 +133,7 @@ func validateNode(n NodeDoc, cat Catalog) []Issue {
 			_, ok := cat.Generator(name)
 			return ok
 		})
-	case KindSource, KindSink:
+	case KindSource, KindSink, KindInput, KindOutput:
 		return validateIONode(n, cat)
 	default:
 		return []Issue{{
@@ -207,7 +208,10 @@ func validateIONode(n NodeDoc, cat Catalog) []Issue {
 			Message: fmt.Sprintf("%s node has no item", n.NodeKind),
 		}}
 	}
-	proto := normalizeType(n.PrototypeType)
+	proto := n.PrototypeType
+	if !IsElectricity(n.ItemName, proto) {
+		proto = normalizeType(proto)
+	}
 	if !cat.HasCommodity(n.ItemName, proto) {
 		return []Issue{{
 			NodeID:  n.NodeID,

@@ -8,6 +8,8 @@
   --accent: #e08a2c;
   --source: #3d7a4a;
   --sink: #3d6a8a;
+  --input: #5cbf6a;
+  --output: #5aa0d4;
   --boiler: #b45a3c;
   --generator: #7a5aa8;
   --error: #d4533c;
@@ -197,6 +199,8 @@ main {
 .node.selected { border-color: var(--accent); }
 .node.source { border-top: 3px solid var(--source); }
 .node.sink { border-top: 3px solid var(--sink); }
+.node.input { border-top: 3px solid var(--input); }
+.node.output { border-top: 3px solid var(--output); }
 .node.recipe { border-top: 3px solid var(--accent); }
 .node.boiler { border-top: 3px solid var(--boiler); }
 .node.generator { border-top: 3px solid var(--generator); }
@@ -328,4 +332,58 @@ main {
   padding: 0.45rem 0.5rem;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+#analysis {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+#analysis h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+#analysis dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+}
+
+#analysis dt {
+  color: var(--muted);
+}
+
+#analysis dd {
+  margin: 0;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+#analysis .gain.positive { color: var(--input); }
+#analysis .gain.negative { color: var(--error); }
+
+#analysis .note {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+}
+
+#analysis .terms {
+  list-style: none;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  font-size: 0.75rem;
+}
+
+#analysis .terms li {
+  margin: 0.15rem 0;
+}
+
+#analysis .warn {
+  margin: 0.35rem 0 0;
+  color: var(--waste);
 }

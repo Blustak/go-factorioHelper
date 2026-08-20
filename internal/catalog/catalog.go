@@ -12,10 +12,12 @@ import (
 )
 
 type Commodity struct {
-	Name          string `json:"name"`
-	Type          string `json:"type"`
-	LocalisedName string `json:"localised_name"`
-	FuelCategory  string `json:"fuel_category,omitempty"`
+	Name          string   `json:"name"`
+	Type          string   `json:"type"`
+	LocalisedName string   `json:"localised_name"`
+	FuelCategory  string   `json:"fuel_category,omitempty"`
+	FuelValue     *float64 `json:"fuel_value,omitempty"`
+	Amount        *float64 `json:"amount,omitempty"`
 }
 
 type Recipe struct {
@@ -32,6 +34,7 @@ type Machine struct {
 	LocalisedName      string   `json:"localised_name"`
 	CraftingCategories []string `json:"crafting_categories"`
 	CraftingSpeed      *float64 `json:"crafting_speed,omitempty"`
+	EnergyUsage        *float64 `json:"energy_usage,omitempty"`
 }
 
 type Producer struct {
@@ -45,18 +48,23 @@ type Producer struct {
 }
 
 type Boiler struct {
-	Name             string   `json:"name"`
-	LocalisedName    string   `json:"localised_name"`
-	InputFluid       *string  `json:"input_fluid,omitempty"`
-	OutputFluid      *string  `json:"output_fluid,omitempty"`
-	FuelCategories   []string `json:"fuel_categories"`
-	EnergySourceType string   `json:"energy_source_type,omitempty"`
+	Name              string   `json:"name"`
+	LocalisedName     string   `json:"localised_name"`
+	InputFluid        *string  `json:"input_fluid,omitempty"`
+	OutputFluid       *string  `json:"output_fluid,omitempty"`
+	FuelCategories    []string `json:"fuel_categories"`
+	EnergySourceType  string   `json:"energy_source_type,omitempty"`
+	TargetTemperature *float64 `json:"target_temperature,omitempty"`
+	Effectivity       *float64 `json:"effectivity,omitempty"`
 }
 
 type Generator struct {
-	Name          string  `json:"name"`
-	LocalisedName string  `json:"localised_name"`
-	InputFluid    *string `json:"input_fluid,omitempty"`
+	Name               string   `json:"name"`
+	LocalisedName      string   `json:"localised_name"`
+	InputFluid         *string  `json:"input_fluid,omitempty"`
+	Effectivity        *float64 `json:"effectivity,omitempty"`
+	MaximumTemperature *float64 `json:"maximum_temperature,omitempty"`
+	BurnsFluid         bool     `json:"burns_fluid,omitempty"`
 }
 
 type Catalog struct {
@@ -192,6 +200,7 @@ func (c *Catalog) loadMachines(cfg *config.State) error {
 			LocalisedName:      rowLocalised(m.Name, row.LocalisedName),
 			CraftingCategories: cats,
 			CraftingSpeed:      m.CraftingSpeed,
+			EnergyUsage:        m.EnergyUsage,
 		}
 		c.Machines = append(c.Machines, dto)
 		c.machineByName[dto.Name] = dto
@@ -278,17 +287,21 @@ func (c *Catalog) loadBoilers(cfg *config.State) error {
 		}
 		cats := []string{}
 		srcType := ""
+		var effectivity *float64
 		if b.EnergySource != nil {
 			srcType = b.EnergySource.Type
+			effectivity = b.EnergySource.Effectivity
 			if b.EnergySource.FuelCategories != nil {
 				cats = b.EnergySource.FuelCategories
 			}
 		}
 		dto := Boiler{
-			Name:             b.Name,
-			LocalisedName:    rowLocalised(b.Name, row.LocalisedName),
-			FuelCategories:   cats,
-			EnergySourceType: srcType,
+			Name:              b.Name,
+			LocalisedName:     rowLocalised(b.Name, row.LocalisedName),
+			FuelCategories:    cats,
+			EnergySourceType:  srcType,
+			TargetTemperature: b.TargetTemperature,
+			Effectivity:       effectivity,
 		}
 		if dto.InputFluid, err = c.fluidName(cfg, row.InputFluid); err != nil {
 			return fmt.Errorf("boiler %q input fluid: %w", b.Name, err)
@@ -329,8 +342,11 @@ func (c *Catalog) loadGenerators(cfg *config.State) error {
 			return err
 		}
 		dto := Generator{
-			Name:          g.Name,
-			LocalisedName: rowLocalised(g.Name, row.LocalisedName),
+			Name:               g.Name,
+			LocalisedName:      rowLocalised(g.Name, row.LocalisedName),
+			Effectivity:        g.Effectivity,
+			MaximumTemperature: g.MaximumTemperature,
+			BurnsFluid:         g.BurnsFluid != nil && *g.BurnsFluid,
 		}
 		if dto.InputFluid, err = c.fluidName(cfg, row.InputFluid); err != nil {
 			return fmt.Errorf("generator %q input fluid: %w", g.Name, err)
@@ -374,6 +390,7 @@ func (c *Catalog) loadItems(cfg *config.State) error {
 			Type:          proto,
 			LocalisedName: rowLocalised(row.Name.String, row.LocalisedName),
 			FuelCategory:  row.FuelCategory.String,
+			FuelValue:     nullFloat(row.FuelValue),
 		}
 		c.Items = append(c.Items, dto)
 		c.commodities[commodityKey(dto.Name, dto.Type)] = dto
@@ -397,7 +414,12 @@ func (c *Catalog) loadFluids(cfg *config.State) error {
 		if proto == "" {
 			proto = "fluid"
 		}
-		dto := Commodity{Name: row.Name.String, Type: proto, LocalisedName: rowLocalised(row.Name.String, row.LocalisedName)}
+		dto := Commodity{
+			Name:          row.Name.String,
+			Type:          proto,
+			LocalisedName: rowLocalised(row.Name.String, row.LocalisedName),
+			FuelValue:     nullFloat(row.FuelValue),
+		}
 		c.Fluids = append(c.Fluids, dto)
 		c.commodities[commodityKey(dto.Name, dto.Type)] = dto
 	}
@@ -416,10 +438,11 @@ func (c *Catalog) Recipe(name string) (chain.RecipeInfo, bool) {
 		return chain.RecipeInfo{}, false
 	}
 	return chain.RecipeInfo{
-		Name:        r.Name,
-		Category:    r.Category,
-		Ingredients: toChain(r.Ingredients),
-		Products:    toChain(r.Products),
+		Name:           r.Name,
+		Category:       r.Category,
+		EnergyRequired: r.EnergyRequired,
+		Ingredients:    toChain(r.Ingredients),
+		Products:       toChain(r.Products),
 	}, true
 }
 
@@ -431,7 +454,12 @@ func (c *Catalog) Machine(name string) (chain.MachineInfo, bool) {
 	if !ok {
 		return chain.MachineInfo{}, false
 	}
-	return chain.MachineInfo{Name: m.Name, Categories: m.CraftingCategories}, true
+	return chain.MachineInfo{
+		Name:          m.Name,
+		Categories:    m.CraftingCategories,
+		CraftingSpeed: m.CraftingSpeed,
+		EnergyUsage:   m.EnergyUsage,
+	}, true
 }
 
 func (c *Catalog) Boiler(name string) (chain.BoilerInfo, bool) {
@@ -442,7 +470,12 @@ func (c *Catalog) Boiler(name string) (chain.BoilerInfo, bool) {
 	if !ok {
 		return chain.BoilerInfo{}, false
 	}
-	info := chain.BoilerInfo{Name: b.Name, FuelCategories: b.FuelCategories}
+	info := chain.BoilerInfo{
+		Name:              b.Name,
+		FuelCategories:    b.FuelCategories,
+		TargetTemperature: b.TargetTemperature,
+		Effectivity:       b.Effectivity,
+	}
 	if b.InputFluid != nil {
 		info.InputFluid = *b.InputFluid
 	}
@@ -460,7 +493,12 @@ func (c *Catalog) Generator(name string) (chain.GeneratorInfo, bool) {
 	if !ok {
 		return chain.GeneratorInfo{}, false
 	}
-	info := chain.GeneratorInfo{Name: g.Name}
+	info := chain.GeneratorInfo{
+		Name:               g.Name,
+		Effectivity:        g.Effectivity,
+		MaximumTemperature: g.MaximumTemperature,
+		BurnsFluid:         g.BurnsFluid,
+	}
 	if g.InputFluid != nil {
 		info.InputFluid = *g.InputFluid
 	}
@@ -481,9 +519,26 @@ func (c *Catalog) FuelCategory(name, prototypeType string) (string, bool) {
 	return com.FuelCategory, true
 }
 
+func (c *Catalog) FuelValue(name, prototypeType string) (float64, bool) {
+	if c == nil {
+		return 0, false
+	}
+	if prototypeType == "" {
+		prototypeType = "item"
+	}
+	com, ok := c.commodities[commodityKey(name, prototypeType)]
+	if !ok || com.FuelValue == nil {
+		return 0, false
+	}
+	return *com.FuelValue, true
+}
+
 func (c *Catalog) HasCommodity(name, prototypeType string) bool {
 	if c == nil {
 		return false
+	}
+	if chain.IsElectricity(name, prototypeType) {
+		return true
 	}
 	if prototypeType == "" {
 		prototypeType = "item"
@@ -537,7 +592,10 @@ func (c *Catalog) ProducersForCategory(category string) []Producer {
 func (c *Catalog) lookupIngredients(ings []datatypes.Ingredient) []Commodity {
 	out := make([]Commodity, 0, len(ings))
 	for _, in := range ings {
-		out = append(out, c.lookupCommodity(in.Name, in.Type))
+		com := c.lookupCommodity(in.Name, in.Type)
+		a := expectedIngredientAmount(in)
+		com.Amount = &a
+		out = append(out, com)
 	}
 	return out
 }
@@ -545,7 +603,10 @@ func (c *Catalog) lookupIngredients(ings []datatypes.Ingredient) []Commodity {
 func (c *Catalog) lookupProducts(products []datatypes.Product) []Commodity {
 	out := make([]Commodity, 0, len(products))
 	for _, p := range products {
-		out = append(out, c.lookupCommodity(p.Name, p.Type))
+		com := c.lookupCommodity(p.Name, p.Type)
+		a := expectedProductAmount(p)
+		com.Amount = &a
+		out = append(out, com)
 	}
 	return out
 }
@@ -577,11 +638,52 @@ func displayLess(aName, aDisp, bName, bDisp string) bool {
 func toChain(cs []Commodity) []chain.Commodity {
 	out := make([]chain.Commodity, len(cs))
 	for i, c := range cs {
-		out[i] = chain.Commodity{Name: c.Name, Type: c.Type}
+		out[i] = chain.Commodity{Name: c.Name, Type: c.Type, Amount: amountOr(c.Amount, 1)}
 	}
 	return out
 }
 
+func expectedIngredientAmount(in datatypes.Ingredient) float64 {
+	a := amountOr(in.Amount, 1)
+	if in.Probability != nil {
+		a *= *in.Probability
+	}
+	return a
+}
+
+func expectedProductAmount(p datatypes.Product) float64 {
+	a := 1.0
+	switch {
+	case p.Amount != nil:
+		a = *p.Amount
+	case p.AmountMin != nil && p.AmountMax != nil:
+		a = (*p.AmountMin + *p.AmountMax) / 2
+	case p.AmountMin != nil:
+		a = *p.AmountMin
+	case p.AmountMax != nil:
+		a = *p.AmountMax
+	}
+	if p.Probability != nil {
+		a *= *p.Probability
+	}
+	return a
+}
+
+func amountOr(v *float64, fallback float64) float64 {
+	if v == nil {
+		return fallback
+	}
+	return *v
+}
+
 func commodityKey(name, proto string) string {
 	return proto + ":" + name
+}
+
+func nullFloat(v sql.NullFloat64) *float64 {
+	if !v.Valid {
+		return nil
+	}
+	f := v.Float64
+	return &f
 }

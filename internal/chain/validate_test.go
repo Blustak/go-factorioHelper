@@ -14,6 +14,7 @@ type fakeCatalog struct {
 	generators map[string]GeneratorInfo
 	commodity  map[string]struct{}
 	fuel       map[string]string
+	fuelValue  map[string]float64
 }
 
 func (f fakeCatalog) Recipe(name string) (RecipeInfo, bool) {
@@ -37,11 +38,22 @@ func (f fakeCatalog) Generator(name string) (GeneratorInfo, bool) {
 }
 
 func (f fakeCatalog) HasCommodity(name, prototypeType string) bool {
+	if IsElectricity(name, prototypeType) {
+		return true
+	}
 	if prototypeType == "" {
 		prototypeType = "item"
 	}
 	_, ok := f.commodity[prototypeType+":"+name]
 	return ok
+}
+
+func (f fakeCatalog) FuelValue(name, prototypeType string) (float64, bool) {
+	if prototypeType == "" {
+		prototypeType = "item"
+	}
+	v, ok := f.fuelValue[prototypeType+":"+name]
+	return v, ok
 }
 
 func (f fakeCatalog) FuelCategory(name, prototypeType string) (string, bool) {
@@ -370,5 +382,53 @@ func TestValidateUnknownBoiler(t *testing.T) {
 	res := Validate(g, testCatalog())
 	if hasCode(res, "unknown_boiler") == nil {
 		t.Fatalf("issues = %+v, want unknown_boiler", res.Issues)
+	}
+}
+
+func TestValidateInputOutputWiring(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{
+			{NodeID: "in", NodeKind: KindInput, ItemName: "iron-plate", PrototypeType: "item"},
+			{NodeID: "rec", NodeKind: KindRecipe, Recipe: "iron-gear-wheel", Machine: "assembling-machine-1"},
+			{NodeID: "out", NodeKind: KindOutput, ItemName: "iron-gear-wheel", PrototypeType: "item"},
+		},
+		Edges: []Edge{
+			{ID: "e1", FromNode: "in", FromPort: "out:0", ToNode: "rec", ToPort: "in:0"},
+			{ID: "e2", FromNode: "rec", FromPort: "out:0", ToNode: "out", ToPort: "in:0"},
+		},
+	}
+	res := Validate(g, testCatalog())
+	if !res.OK {
+		t.Fatalf("input/output graph issues = %+v", res.Issues)
+	}
+}
+
+func TestValidateOutputRequiresInput(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{{
+			NodeID: "out", NodeKind: KindOutput, ItemName: "iron-plate", PrototypeType: "item",
+		}},
+	}
+	res := Validate(g, testCatalog())
+	if hasCode(res, "required_input") == nil {
+		t.Fatalf("issues = %+v, want required_input on output", res.Issues)
+	}
+}
+
+func TestValidateGeneratorElectricityOutput(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{
+			{NodeID: "steam", NodeKind: KindSource, ItemName: "steam", PrototypeType: "fluid"},
+			{NodeID: "eng", NodeKind: KindGenerator, Generator: "steam-engine"},
+			{NodeID: "out", NodeKind: KindOutput, ItemName: ElectricityName, PrototypeType: ElectricityType},
+		},
+		Edges: []Edge{
+			{ID: "e1", FromNode: "steam", FromPort: "out:0", ToNode: "eng", ToPort: "in:0"},
+			{ID: "e2", FromNode: "eng", FromPort: "out:0", ToNode: "out", ToPort: "in:0"},
+		},
+	}
+	res := Validate(g, testCatalog())
+	if !res.OK {
+		t.Fatalf("issues = %+v", res.Issues)
 	}
 }

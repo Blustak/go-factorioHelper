@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -196,16 +197,20 @@ func TestGetItemsAndFluids(t *testing.T) {
 	res := httptest.NewRecorder()
 	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/items", nil))
 	var items []struct {
-		Name          string `json:"name"`
-		Type          string `json:"type"`
-		LocalisedName string `json:"localised_name"`
-		FuelCategory  string `json:"fuel_category"`
+		Name          string   `json:"name"`
+		Type          string   `json:"type"`
+		LocalisedName string   `json:"localised_name"`
+		FuelCategory  string   `json:"fuel_category"`
+		FuelValue     *float64 `json:"fuel_value"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &items); err != nil {
 		t.Fatalf("items: %v", err)
 	}
 	if len(items) != 1 || items[0].Name != "wood" || items[0].LocalisedName != "Wood" || items[0].FuelCategory != "chemical" {
 		t.Fatalf("items = %+v", items)
+	}
+	if items[0].FuelValue == nil || *items[0].FuelValue != 2e6 {
+		t.Fatalf("wood fuel_value = %v, want 2e6", items[0].FuelValue)
 	}
 
 	res = httptest.NewRecorder()
@@ -359,6 +364,101 @@ func postValidate(t *testing.T, srv *Server, g chain.Graph) chain.Result {
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("validate status = %d, body = %s", rec.Code, rec.Body.Bytes())
+	}
+	var out chain.Result
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	return out
+}
+
+func TestAnalyzeGraph(t *testing.T) {
+	srv := testServer(t)
+	g := chain.Graph{
+		Nodes: []chain.NodeDoc{
+			{NodeID: "in", NodeKind: chain.KindInput, ItemName: "wood", PrototypeType: "item"},
+			{NodeID: "rec", NodeKind: chain.KindRecipe, Recipe: "wood", Machine: "assembling-machine-1"},
+			{NodeID: "out", NodeKind: chain.KindOutput, ItemName: "wood", PrototypeType: "item"},
+		},
+		Edges: []chain.Edge{
+			{ID: "e1", FromNode: "in", FromPort: "out:0", ToNode: "rec", ToPort: "in:0"},
+			{ID: "e2", FromNode: "rec", FromPort: "out:0", ToNode: "out", ToPort: "in:0"},
+		},
+	}
+	res := postAnalyze(t, srv, g)
+	if !res.OK || res.Analysis == nil {
+		t.Fatalf("analyze = %+v", res)
+	}
+	wantProd := 75000.0 * (0.5 / 0.5)
+	if res.Analysis.InputEnergy != 2e6 {
+		t.Errorf("input_energy = %v, want 2e6", res.Analysis.InputEnergy)
+	}
+	if res.Analysis.OutputGross != 2e6 {
+		t.Errorf("output_gross = %v, want 2e6", res.Analysis.OutputGross)
+	}
+	if res.Analysis.ProductionEnergy != wantProd {
+		t.Errorf("production_energy = %v, want %v", res.Analysis.ProductionEnergy, wantProd)
+	}
+	if res.Analysis.Gain != -wantProd {
+		t.Errorf("gain = %v, want %v", res.Analysis.Gain, -wantProd)
+	}
+}
+
+func TestAnalyzeElectricity(t *testing.T) {
+	srv := testServer(t)
+	g := chain.Graph{
+		Nodes: []chain.NodeDoc{
+			{NodeID: "fuel", NodeKind: chain.KindInput, ItemName: "wood", PrototypeType: "item"},
+			{NodeID: "water", NodeKind: chain.KindSource, ItemName: "water", PrototypeType: "fluid"},
+			{NodeID: "b", NodeKind: chain.KindBoiler, Boiler: "boiler"},
+			{NodeID: "eng", NodeKind: chain.KindGenerator, Generator: "steam-engine"},
+			{NodeID: "out", NodeKind: chain.KindOutput, ItemName: chain.ElectricityName, PrototypeType: chain.ElectricityType},
+		},
+		Edges: []chain.Edge{
+			{ID: "e1", FromNode: "fuel", FromPort: "out:0", ToNode: "b", ToPort: "in:0"},
+			{ID: "e2", FromNode: "water", FromPort: "out:0", ToNode: "b", ToPort: "in:1"},
+			{ID: "e3", FromNode: "b", FromPort: "out:0", ToNode: "eng", ToPort: "in:0"},
+			{ID: "e4", FromNode: "eng", FromPort: "out:0", ToNode: "out", ToPort: "in:0"},
+		},
+	}
+	res := postAnalyze(t, srv, g)
+	if !res.OK || res.Analysis == nil {
+		t.Fatalf("analyze = %+v", res)
+	}
+	wantOut := 2e6
+	if res.Analysis.InputEnergy != 2e6 {
+		t.Errorf("input_energy = %v, want 2e6", res.Analysis.InputEnergy)
+	}
+	if math.Abs(res.Analysis.OutputGross-wantOut) > 1e-6*wantOut {
+		t.Errorf("output_gross = %v, want %v", res.Analysis.OutputGross, wantOut)
+	}
+}
+
+func TestAnalyzeInvalidGraph(t *testing.T) {
+	srv := testServer(t)
+	g := chain.Graph{
+		Nodes: []chain.NodeDoc{{
+			NodeID: "out", NodeKind: chain.KindOutput, ItemName: "wood", PrototypeType: "item",
+		}},
+	}
+	res := postAnalyze(t, srv, g)
+	if res.OK || res.Analysis != nil {
+		t.Fatalf("invalid graph should skip analysis, got %+v", res)
+	}
+}
+
+func postAnalyze(t *testing.T, srv *Server, g chain.Graph) chain.Result {
+	t.Helper()
+	body, err := json.Marshal(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/graph/analyze", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("analyze status = %d, body = %s", rec.Code, rec.Body.Bytes())
 	}
 	var out chain.Result
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
