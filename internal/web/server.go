@@ -39,6 +39,8 @@ func New(cfg *config.State) (*Server, error) {
 	s.mux.HandleFunc("GET /api/fluids", s.handleFluids)
 	s.mux.HandleFunc("GET /api/machines", s.handleMachines)
 	s.mux.HandleFunc("GET /api/producers", s.handleProducers)
+	s.mux.HandleFunc("GET /api/boilers", s.handleBoilers)
+	s.mux.HandleFunc("GET /api/generators", s.handleGenerators)
 	s.mux.HandleFunc("POST /api/graph/validate", s.handleValidate)
 	return s, nil
 }
@@ -74,6 +76,14 @@ func (s *Server) handleMachines(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProducers(w http.ResponseWriter, r *http.Request) {
 	category := strings.TrimSpace(r.URL.Query().Get("category"))
 	writeJSON(w, s.catalog.ProducersForCategory(category))
+}
+
+func (s *Server) handleBoilers(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.catalog.Boilers)
+}
+
+func (s *Server) handleGenerators(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.catalog.Generators)
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {

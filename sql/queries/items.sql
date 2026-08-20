@@ -1,8 +1,8 @@
 -- name: AddItem :one
 INSERT INTO items(
-  entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight
+  entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category
 ) VALUES (
-  @entity_id, @stack_size, @burnt_result, @fuel_value, @spoil_result, @spoil_ticks, @weight
+  @entity_id, @stack_size, @burnt_result, @fuel_value, @spoil_result, @spoil_ticks, @weight, @fuel_category
 ) RETURNING *;
 
 -- name: GetAllItems :many
@@ -46,6 +46,7 @@ burnt_result = @burnt_result,
 fuel_value = @fuel_value,
 spoil_result = @spoil_result,
 spoil_ticks = @spoil_ticks,
-weight = @weight
+weight = @weight,
+fuel_category = @fuel_category
 WHERE id = @id
 RETURNING *;

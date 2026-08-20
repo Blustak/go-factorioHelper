@@ -4,7 +4,10 @@ package chain
 type Catalog interface {
 	Recipe(name string) (RecipeInfo, bool)
 	Machine(name string) (MachineInfo, bool)
+	Boiler(name string) (BoilerInfo, bool)
+	Generator(name string) (GeneratorInfo, bool)
 	HasCommodity(name, prototypeType string) bool
+	FuelCategory(name, prototypeType string) (string, bool)
 }
 
 type Commodity struct {
@@ -22,4 +25,16 @@ type RecipeInfo struct {
 type MachineInfo struct {
 	Name       string
 	Categories []string
+}
+
+type BoilerInfo struct {
+	Name           string
+	InputFluid     string
+	OutputFluid    string
+	FuelCategories []string
+}
+
+type GeneratorInfo struct {
+	Name       string
+	InputFluid string
 }

@@ -8,6 +8,8 @@
   --accent: #e08a2c;
   --source: #3d7a4a;
   --sink: #3d6a8a;
+  --boiler: #b45a3c;
+  --generator: #7a5aa8;
   --error: #d4533c;
   --waste: #8a7a4a;
   font-family: "Segoe UI", system-ui, sans-serif;
@@ -196,6 +198,8 @@ main {
 .node.source { border-top: 3px solid var(--source); }
 .node.sink { border-top: 3px solid var(--sink); }
 .node.recipe { border-top: 3px solid var(--accent); }
+.node.boiler { border-top: 3px solid var(--boiler); }
+.node.generator { border-top: 3px solid var(--generator); }
 .node.error { box-shadow: 0 0 0 1px var(--error); }
 
 .node header {

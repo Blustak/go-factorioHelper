@@ -10,28 +10,33 @@ import (
 	"github.com/Blustak/go-factorioHelper/internal/database"
 )
 
+// DefaultFuelCategory is Factorio's implicit category when a fuel item omits one.
+const DefaultFuelCategory = "chemical"
+
 type Item struct {
 	Entity
-	StackSize   *int64
-	BurntResult *string
-	FuelValue   *float64
-	SpoilResult *string
-	SpoilTicks  *int64
-	Weight      *int64
-	itemEntry   *database.Item
+	StackSize    *int64
+	BurntResult  *string
+	FuelValue    *float64
+	SpoilResult  *string
+	SpoilTicks   *int64
+	Weight       *int64
+	FuelCategory *string
+	itemEntry    *database.Item
 }
 
 func (i *Item) UnmarshalJSON(b []byte) error {
 	var raw struct {
-		Name        string  `json:"name"`
-		Type        string  `json:"type"`
-		Order       *string `json:"order"`
-		StackSize   *int64  `json:"stack_size"`
-		BurntResult *string `json:"burnt_result"`
-		FuelValue   *string `json:"fuel_value"`
-		SpoilResult *string `json:"spoil_result"`
-		SpoilTicks  *int64  `json:"spoil_ticks"`
-		Weight      *int64  `json:"weight"`
+		Name         string  `json:"name"`
+		Type         string  `json:"type"`
+		Order        *string `json:"order"`
+		StackSize    *int64  `json:"stack_size"`
+		BurntResult  *string `json:"burnt_result"`
+		FuelValue    *string `json:"fuel_value"`
+		FuelCategory *string `json:"fuel_category"`
+		SpoilResult  *string `json:"spoil_result"`
+		SpoilTicks   *int64  `json:"spoil_ticks"`
+		Weight       *int64  `json:"weight"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
@@ -41,15 +46,27 @@ func (i *Item) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("item %q fuel_value: %w", raw.Name, err)
 	}
 	*i = Item{
-		Entity:      newEntity(raw.Name, raw.Type, raw.Order, b),
-		StackSize:   raw.StackSize,
-		BurntResult: raw.BurntResult,
-		FuelValue:   fuel,
-		SpoilResult: raw.SpoilResult,
-		SpoilTicks:  raw.SpoilTicks,
-		Weight:      raw.Weight,
+		Entity:       newEntity(raw.Name, raw.Type, raw.Order, b),
+		StackSize:    raw.StackSize,
+		BurntResult:  raw.BurntResult,
+		FuelValue:    fuel,
+		SpoilResult:  raw.SpoilResult,
+		SpoilTicks:   raw.SpoilTicks,
+		Weight:       raw.Weight,
+		FuelCategory: resolveFuelCategory(fuel, raw.FuelCategory),
 	}
 	return nil
+}
+
+func resolveFuelCategory(fuelValue *float64, category *string) *string {
+	if category != nil && *category != "" {
+		return category
+	}
+	if fuelValue == nil {
+		return nil
+	}
+	cat := DefaultFuelCategory
+	return &cat
 }
 
 func (i *Item) AddToDB(cfg *config.State) (database.Item, error) {
@@ -71,26 +88,28 @@ func (i *Item) AddToDB(cfg *config.State) (database.Item, error) {
 	}
 
 	params := database.AddItemParams{
-		EntityID:    i.entEntry.ID,
-		StackSize:   toNullInt64(i.StackSize),
-		BurntResult: burnt,
-		FuelValue:   toNullFloat64(i.FuelValue),
-		SpoilResult: spoil,
-		SpoilTicks:  toNullInt64(i.SpoilTicks),
-		Weight:      toNullInt64(i.Weight),
+		EntityID:     i.entEntry.ID,
+		StackSize:    toNullInt64(i.StackSize),
+		BurntResult:  burnt,
+		FuelValue:    toNullFloat64(i.FuelValue),
+		SpoilResult:  spoil,
+		SpoilTicks:   toNullInt64(i.SpoilTicks),
+		Weight:       toNullInt64(i.Weight),
+		FuelCategory: toNullString(i.FuelCategory),
 	}
 
 	existing, err := cfg.DB.GetItemByEntityID(cfg.CTX, i.entEntry.ID)
 	if err == nil {
 		item, err = cfg.DB.UpdateItemByID(cfg.CTX, database.UpdateItemByIDParams{
-			EntityID:    params.EntityID,
-			StackSize:   params.StackSize,
-			BurntResult: params.BurntResult,
-			FuelValue:   params.FuelValue,
-			SpoilResult: params.SpoilResult,
-			SpoilTicks:  params.SpoilTicks,
-			Weight:      params.Weight,
-			ID:          existing.ID,
+			EntityID:     params.EntityID,
+			StackSize:    params.StackSize,
+			BurntResult:  params.BurntResult,
+			FuelValue:    params.FuelValue,
+			SpoilResult:  params.SpoilResult,
+			SpoilTicks:   params.SpoilTicks,
+			Weight:       params.Weight,
+			FuelCategory: params.FuelCategory,
+			ID:           existing.ID,
 		})
 		if err != nil {
 			return item, err
@@ -151,13 +170,14 @@ func (i *Item) GetEntityID(cfg *config.State) (int64, error) {
 
 func itemFromJoin(row database.GetItemByEntityIDRow) database.Item {
 	return database.Item{
-		ID:          row.ID,
-		EntityID:    row.EntityID,
-		StackSize:   row.StackSize,
-		BurntResult: row.BurntResult,
-		FuelValue:   row.FuelValue,
-		SpoilResult: row.SpoilResult,
-		SpoilTicks:  row.SpoilTicks,
-		Weight:      row.Weight,
+		ID:           row.ID,
+		EntityID:     row.EntityID,
+		StackSize:    row.StackSize,
+		BurntResult:  row.BurntResult,
+		FuelValue:    row.FuelValue,
+		SpoilResult:  row.SpoilResult,
+		SpoilTicks:   row.SpoilTicks,
+		Weight:       row.Weight,
+		FuelCategory: row.FuelCategory,
 	}
 }

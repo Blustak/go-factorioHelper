@@ -19,6 +19,8 @@ var knownTypes = map[string]struct{}{
 	"mining-drill":       {},
 	"offshore-pump":      {},
 	"pump":               {},
+	"boiler":             {},
+	"generator":          {},
 }
 
 type Stats struct {
@@ -29,6 +31,8 @@ type Stats struct {
 	AssemblyMachines  int
 	Furnaces          int
 	ResourceProducers int
+	Boilers           int
+	Generators        int
 	Skipped           int
 }
 
@@ -117,6 +121,24 @@ func Load(cfg *config.State, path string) (Stats, error) {
 			producers += n
 		}
 		stats.ResourceProducers = producers
+
+		n, err = loadMap(dumpFile["boiler"], "boiler", func(v *datatypes.Boiler) error {
+			_, err := v.AddToDB(txCfg)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		stats.Boilers = n
+
+		n, err = loadMap(dumpFile["generator"], "generator", func(v *datatypes.Generator) error {
+			_, err := v.AddToDB(txCfg)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		stats.Generators = n
 		return nil
 	})
 	if err != nil {

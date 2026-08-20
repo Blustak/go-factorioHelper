@@ -12,20 +12,21 @@ import (
 
 const addItem = `-- name: AddItem :one
 INSERT INTO items(
-  entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight
+  entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5, ?6, ?7
-) RETURNING id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight
+  ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+) RETURNING id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category
 `
 
 type AddItemParams struct {
-	EntityID    int64
-	StackSize   sql.NullInt64
-	BurntResult sql.NullInt64
-	FuelValue   sql.NullFloat64
-	SpoilResult sql.NullInt64
-	SpoilTicks  sql.NullInt64
-	Weight      sql.NullInt64
+	EntityID     int64
+	StackSize    sql.NullInt64
+	BurntResult  sql.NullInt64
+	FuelValue    sql.NullFloat64
+	SpoilResult  sql.NullInt64
+	SpoilTicks   sql.NullInt64
+	Weight       sql.NullInt64
+	FuelCategory sql.NullString
 }
 
 func (q *Queries) AddItem(ctx context.Context, arg AddItemParams) (Item, error) {
@@ -37,6 +38,7 @@ func (q *Queries) AddItem(ctx context.Context, arg AddItemParams) (Item, error) 
 		arg.SpoilResult,
 		arg.SpoilTicks,
 		arg.Weight,
+		arg.FuelCategory,
 	)
 	var i Item
 	err := row.Scan(
@@ -48,12 +50,13 @@ func (q *Queries) AddItem(ctx context.Context, arg AddItemParams) (Item, error) 
 		&i.SpoilResult,
 		&i.SpoilTicks,
 		&i.Weight,
+		&i.FuelCategory,
 	)
 	return i, err
 }
 
 const getAllItemValues = `-- name: GetAllItemValues :many
-SELECT id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight FROM items
+SELECT id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category FROM items
 `
 
 func (q *Queries) GetAllItemValues(ctx context.Context) ([]Item, error) {
@@ -74,6 +77,7 @@ func (q *Queries) GetAllItemValues(ctx context.Context) ([]Item, error) {
 			&i.SpoilResult,
 			&i.SpoilTicks,
 			&i.Weight,
+			&i.FuelCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -91,7 +95,7 @@ func (q *Queries) GetAllItemValues(ctx context.Context) ([]Item, error) {
 const getAllItems = `-- name: GetAllItems :many
 
 SELECT
-items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, entities.id, name, prototype_type, entity_order, localised_name
+items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category, entities.id, name, prototype_type, entity_order, localised_name
 FROM items
 LEFT JOIN entities
 ON items.entity_id = entities.id
@@ -106,6 +110,7 @@ type GetAllItemsRow struct {
 	SpoilResult   sql.NullInt64
 	SpoilTicks    sql.NullInt64
 	Weight        sql.NullInt64
+	FuelCategory  sql.NullString
 	ID_2          sql.NullInt64
 	Name          sql.NullString
 	PrototypeType sql.NullString
@@ -131,6 +136,7 @@ func (q *Queries) GetAllItems(ctx context.Context) ([]GetAllItemsRow, error) {
 			&i.SpoilResult,
 			&i.SpoilTicks,
 			&i.Weight,
+			&i.FuelCategory,
 			&i.ID_2,
 			&i.Name,
 			&i.PrototypeType,
@@ -151,7 +157,7 @@ func (q *Queries) GetAllItems(ctx context.Context) ([]GetAllItemsRow, error) {
 }
 
 const getItemByEntityID = `-- name: GetItemByEntityID :one
-SELECT items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, entities.id, name, prototype_type, entity_order, localised_name
+SELECT items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category, entities.id, name, prototype_type, entity_order, localised_name
 FROM items
 LEFT JOIN entities
 ON items.entity_id = entities.id
@@ -167,6 +173,7 @@ type GetItemByEntityIDRow struct {
 	SpoilResult   sql.NullInt64
 	SpoilTicks    sql.NullInt64
 	Weight        sql.NullInt64
+	FuelCategory  sql.NullString
 	ID_2          sql.NullInt64
 	Name          sql.NullString
 	PrototypeType sql.NullString
@@ -186,6 +193,7 @@ func (q *Queries) GetItemByEntityID(ctx context.Context, id int64) (GetItemByEnt
 		&i.SpoilResult,
 		&i.SpoilTicks,
 		&i.Weight,
+		&i.FuelCategory,
 		&i.ID_2,
 		&i.Name,
 		&i.PrototypeType,
@@ -196,7 +204,7 @@ func (q *Queries) GetItemByEntityID(ctx context.Context, id int64) (GetItemByEnt
 }
 
 const getItemByItemID = `-- name: GetItemByItemID :one
-SELECT items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, entities.id, name, prototype_type, entity_order, localised_name
+SELECT items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category, entities.id, name, prototype_type, entity_order, localised_name
 FROM items
 LEFT JOIN entities
 ON items.entity_id = entities.id
@@ -212,6 +220,7 @@ type GetItemByItemIDRow struct {
 	SpoilResult   sql.NullInt64
 	SpoilTicks    sql.NullInt64
 	Weight        sql.NullInt64
+	FuelCategory  sql.NullString
 	ID_2          sql.NullInt64
 	Name          sql.NullString
 	PrototypeType sql.NullString
@@ -231,6 +240,7 @@ func (q *Queries) GetItemByItemID(ctx context.Context, id int64) (GetItemByItemI
 		&i.SpoilResult,
 		&i.SpoilTicks,
 		&i.Weight,
+		&i.FuelCategory,
 		&i.ID_2,
 		&i.Name,
 		&i.PrototypeType,
@@ -242,7 +252,7 @@ func (q *Queries) GetItemByItemID(ctx context.Context, id int64) (GetItemByItemI
 
 const getItemByName = `-- name: GetItemByName :one
 
-SELECT items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, entities.id, name, prototype_type, entity_order, localised_name
+SELECT items.id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category, entities.id, name, prototype_type, entity_order, localised_name
 FROM items
 LEFT JOIN entities
 ON items.entity_id = entities.id
@@ -258,6 +268,7 @@ type GetItemByNameRow struct {
 	SpoilResult   sql.NullInt64
 	SpoilTicks    sql.NullInt64
 	Weight        sql.NullInt64
+	FuelCategory  sql.NullString
 	ID_2          sql.NullInt64
 	Name          sql.NullString
 	PrototypeType sql.NullString
@@ -277,6 +288,7 @@ func (q *Queries) GetItemByName(ctx context.Context, name string) (GetItemByName
 		&i.SpoilResult,
 		&i.SpoilTicks,
 		&i.Weight,
+		&i.FuelCategory,
 		&i.ID_2,
 		&i.Name,
 		&i.PrototypeType,
@@ -294,20 +306,22 @@ burnt_result = ?3,
 fuel_value = ?4,
 spoil_result = ?5,
 spoil_ticks = ?6,
-weight = ?7
-WHERE id = ?8
-RETURNING id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight
+weight = ?7,
+fuel_category = ?8
+WHERE id = ?9
+RETURNING id, entity_id, stack_size, burnt_result, fuel_value, spoil_result, spoil_ticks, weight, fuel_category
 `
 
 type UpdateItemByIDParams struct {
-	EntityID    int64
-	StackSize   sql.NullInt64
-	BurntResult sql.NullInt64
-	FuelValue   sql.NullFloat64
-	SpoilResult sql.NullInt64
-	SpoilTicks  sql.NullInt64
-	Weight      sql.NullInt64
-	ID          int64
+	EntityID     int64
+	StackSize    sql.NullInt64
+	BurntResult  sql.NullInt64
+	FuelValue    sql.NullFloat64
+	SpoilResult  sql.NullInt64
+	SpoilTicks   sql.NullInt64
+	Weight       sql.NullInt64
+	FuelCategory sql.NullString
+	ID           int64
 }
 
 func (q *Queries) UpdateItemByID(ctx context.Context, arg UpdateItemByIDParams) (Item, error) {
@@ -319,6 +333,7 @@ func (q *Queries) UpdateItemByID(ctx context.Context, arg UpdateItemByIDParams) 
 		arg.SpoilResult,
 		arg.SpoilTicks,
 		arg.Weight,
+		arg.FuelCategory,
 		arg.ID,
 	)
 	var i Item
@@ -331,6 +346,7 @@ func (q *Queries) UpdateItemByID(ctx context.Context, arg UpdateItemByIDParams) 
 		&i.SpoilResult,
 		&i.SpoilTicks,
 		&i.Weight,
+		&i.FuelCategory,
 	)
 	return i, err
 }

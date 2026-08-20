@@ -123,6 +123,69 @@ func ResourceProducerFromDB(name, prototypeType string, entityOrder sql.NullStri
 	}, nil
 }
 
+// BoilerFromDB reconstructs a Boiler from a database row, decoding a gob-encoded energy source.
+func BoilerFromDB(name, prototypeType string, entityOrder sql.NullString, row database.Boiler) (*Boiler, error) {
+	if name == "" {
+		return nil, fmt.Errorf("boiler row %d missing entity name", row.ID)
+	}
+	var src *EnergySource
+	if len(row.EnergySource) > 0 {
+		decoded, err := gobDecode[EnergySource](row.EnergySource)
+		if err != nil {
+			return nil, fmt.Errorf("boiler %q energy source: %w", name, err)
+		}
+		src = &decoded
+	}
+	proto := prototypeType
+	if proto == "" {
+		proto = "boiler"
+	}
+	return &Boiler{
+		Entity: Entity{
+			Name:        name,
+			Type:        proto,
+			EntityOrder: fromNullString(entityOrder),
+		},
+		EnergySource:      src,
+		EnergyConsumption: fromNullFloat64(row.EnergyConsumption),
+		TargetTemperature: fromNullFloat64(row.TargetTemperature),
+		Mode:              fromNullString(row.Mode),
+		boilerEntry:       &row,
+	}, nil
+}
+
+// GeneratorFromDB reconstructs a Generator from a database row, decoding a gob-encoded energy source.
+func GeneratorFromDB(name, prototypeType string, entityOrder sql.NullString, row database.Generator) (*Generator, error) {
+	if name == "" {
+		return nil, fmt.Errorf("generator row %d missing entity name", row.ID)
+	}
+	var src *EnergySource
+	if len(row.EnergySource) > 0 {
+		decoded, err := gobDecode[EnergySource](row.EnergySource)
+		if err != nil {
+			return nil, fmt.Errorf("generator %q energy source: %w", name, err)
+		}
+		src = &decoded
+	}
+	proto := prototypeType
+	if proto == "" {
+		proto = "generator"
+	}
+	return &Generator{
+		Entity: Entity{
+			Name:        name,
+			Type:        proto,
+			EntityOrder: fromNullString(entityOrder),
+		},
+		EnergySource:       src,
+		Effectivity:        fromNullFloat64(row.Effectivity),
+		FluidUsagePerTick:  fromNullFloat64(row.FluidUsagePerTick),
+		MaximumTemperature: fromNullFloat64(row.MaximumTemperature),
+		BurnsFluid:         fromNullBoolInt(row.BurnsFluid),
+		generatorEntry:     &row,
+	}, nil
+}
+
 func normalizeCommodities(ings []Ingredient, results []Product) {
 	for i := range ings {
 		if ings[i].Type == "" {

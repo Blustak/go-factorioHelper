@@ -8,9 +8,12 @@ import (
 var _ Node = NodeDoc{}
 
 type fakeCatalog struct {
-	recipes   map[string]RecipeInfo
-	machines  map[string]MachineInfo
-	commodity map[string]struct{}
+	recipes    map[string]RecipeInfo
+	machines   map[string]MachineInfo
+	boilers    map[string]BoilerInfo
+	generators map[string]GeneratorInfo
+	commodity  map[string]struct{}
+	fuel       map[string]string
 }
 
 func (f fakeCatalog) Recipe(name string) (RecipeInfo, bool) {
@@ -23,12 +26,30 @@ func (f fakeCatalog) Machine(name string) (MachineInfo, bool) {
 	return m, ok
 }
 
+func (f fakeCatalog) Boiler(name string) (BoilerInfo, bool) {
+	b, ok := f.boilers[name]
+	return b, ok
+}
+
+func (f fakeCatalog) Generator(name string) (GeneratorInfo, bool) {
+	g, ok := f.generators[name]
+	return g, ok
+}
+
 func (f fakeCatalog) HasCommodity(name, prototypeType string) bool {
 	if prototypeType == "" {
 		prototypeType = "item"
 	}
 	_, ok := f.commodity[prototypeType+":"+name]
 	return ok
+}
+
+func (f fakeCatalog) FuelCategory(name, prototypeType string) (string, bool) {
+	if prototypeType == "" {
+		prototypeType = "item"
+	}
+	c, ok := f.fuel[prototypeType+":"+name]
+	return c, ok
 }
 
 func testCatalog() fakeCatalog {
@@ -61,13 +82,37 @@ func testCatalog() fakeCatalog {
 			"assembling-machine-1": {Name: "assembling-machine-1", Categories: []string{"crafting"}},
 			"oil-refinery":         {Name: "oil-refinery", Categories: []string{"oil-processing"}},
 		},
+		boilers: map[string]BoilerInfo{
+			"boiler": {
+				Name:           "boiler",
+				InputFluid:     "water",
+				OutputFluid:    "steam",
+				FuelCategories: []string{"chemical"},
+			},
+			"heat-exchanger": {
+				Name:        "heat-exchanger",
+				InputFluid:  "water",
+				OutputFluid: "steam",
+			},
+		},
+		generators: map[string]GeneratorInfo{
+			"steam-engine": {Name: "steam-engine", InputFluid: "steam"},
+		},
 		commodity: map[string]struct{}{
 			"item:iron-plate":      {},
 			"item:iron-gear-wheel": {},
+			"item:wood":            {},
+			"item:coal":            {},
 			"fluid:crude-oil":      {},
 			"fluid:heavy-oil":      {},
 			"fluid:light-oil":      {},
 			"fluid:petroleum-gas":  {},
+			"fluid:water":          {},
+			"fluid:steam":          {},
+		},
+		fuel: map[string]string{
+			"item:wood": "chemical",
+			"item:coal": "chemical",
 		},
 	}
 }
@@ -251,5 +296,79 @@ func TestIssueMessagesMentionPorts(t *testing.T) {
 	issue := hasCode(res, "required_input")
 	if issue == nil || !strings.Contains(issue.Message, "iron-plate") {
 		t.Fatalf("required_input message = %+v", issue)
+	}
+}
+
+func TestValidateBoilerFuelAndWaterRequired(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{{NodeID: "b", NodeKind: KindBoiler, Boiler: "boiler"}},
+	}
+	res := Validate(g, testCatalog())
+	if hasCode(res, "required_input") == nil {
+		t.Fatalf("issues = %+v, want required_input", res.Issues)
+	}
+}
+
+func TestValidateBoilerWoodFuelOK(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{
+			{NodeID: "fuel", NodeKind: KindSource, ItemName: "wood", PrototypeType: "item"},
+			{NodeID: "water", NodeKind: KindSource, ItemName: "water", PrototypeType: "fluid"},
+			{NodeID: "b", NodeKind: KindBoiler, Boiler: "boiler"},
+			{NodeID: "eng", NodeKind: KindGenerator, Generator: "steam-engine"},
+		},
+		Edges: []Edge{
+			{ID: "e1", FromNode: "fuel", FromPort: "out:0", ToNode: "b", ToPort: "in:0"},
+			{ID: "e2", FromNode: "water", FromPort: "out:0", ToNode: "b", ToPort: "in:1"},
+			{ID: "e3", FromNode: "b", FromPort: "out:0", ToNode: "eng", ToPort: "in:0"},
+		},
+	}
+	res := Validate(g, testCatalog())
+	if !res.OK {
+		t.Fatalf("issues = %+v", res.Issues)
+	}
+}
+
+func TestValidateBoilerIronPlateFuelMismatch(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{
+			{NodeID: "fuel", NodeKind: KindSource, ItemName: "iron-plate", PrototypeType: "item"},
+			{NodeID: "water", NodeKind: KindSource, ItemName: "water", PrototypeType: "fluid"},
+			{NodeID: "b", NodeKind: KindBoiler, Boiler: "boiler"},
+		},
+		Edges: []Edge{
+			{ID: "e1", FromNode: "fuel", FromPort: "out:0", ToNode: "b", ToPort: "in:0"},
+			{ID: "e2", FromNode: "water", FromPort: "out:0", ToNode: "b", ToPort: "in:1"},
+		},
+	}
+	res := Validate(g, testCatalog())
+	if hasCode(res, "type_mismatch") == nil {
+		t.Fatalf("issues = %+v, want type_mismatch", res.Issues)
+	}
+}
+
+func TestValidateHeatExchangerNoFuelPort(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{
+			{NodeID: "water", NodeKind: KindSource, ItemName: "water", PrototypeType: "fluid"},
+			{NodeID: "hx", NodeKind: KindBoiler, Boiler: "heat-exchanger"},
+		},
+		Edges: []Edge{
+			{ID: "e1", FromNode: "water", FromPort: "out:0", ToNode: "hx", ToPort: "in:0"},
+		},
+	}
+	res := Validate(g, testCatalog())
+	if !res.OK {
+		t.Fatalf("issues = %+v", res.Issues)
+	}
+}
+
+func TestValidateUnknownBoiler(t *testing.T) {
+	g := Graph{
+		Nodes: []NodeDoc{{NodeID: "b", NodeKind: KindBoiler, Boiler: "missing"}},
+	}
+	res := Validate(g, testCatalog())
+	if hasCode(res, "unknown_boiler") == nil {
+		t.Fatalf("issues = %+v, want unknown_boiler", res.Issues)
 	}
 }

@@ -18,6 +18,17 @@ type AssemblyMachine struct {
 	FixedRecipe        sql.NullInt64
 }
 
+type Boiler struct {
+	ID                int64
+	EntityID          int64
+	EnergySource      []byte
+	EnergyConsumption sql.NullFloat64
+	TargetTemperature sql.NullFloat64
+	Mode              sql.NullString
+	InputFluid        sql.NullInt64
+	OutputFluid       sql.NullInt64
+}
+
 type Entity struct {
 	ID            int64
 	Name          string
@@ -35,15 +46,27 @@ type Fluid struct {
 	MaxTemperature     sql.NullInt64
 }
 
+type Generator struct {
+	ID                 int64
+	EntityID           int64
+	EnergySource       []byte
+	Effectivity        sql.NullFloat64
+	FluidUsagePerTick  sql.NullFloat64
+	MaximumTemperature sql.NullFloat64
+	BurnsFluid         sql.NullInt64
+	InputFluid         sql.NullInt64
+}
+
 type Item struct {
-	ID          int64
-	EntityID    int64
-	StackSize   sql.NullInt64
-	BurntResult sql.NullInt64
-	FuelValue   sql.NullFloat64
-	SpoilResult sql.NullInt64
-	SpoilTicks  sql.NullInt64
-	Weight      sql.NullInt64
+	ID           int64
+	EntityID     int64
+	StackSize    sql.NullInt64
+	BurntResult  sql.NullInt64
+	FuelValue    sql.NullFloat64
+	SpoilResult  sql.NullInt64
+	SpoilTicks   sql.NullInt64
+	Weight       sql.NullInt64
+	FuelCategory sql.NullString
 }
 
 type Recipe struct {

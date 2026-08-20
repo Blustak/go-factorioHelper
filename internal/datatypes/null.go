@@ -23,6 +23,25 @@ func toNullString(v *string) sql.NullString {
 	return sql.NullString{String: *v, Valid: true}
 }
 
+func toNullBoolInt(v *bool) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	n := int64(0)
+	if *v {
+		n = 1
+	}
+	return sql.NullInt64{Int64: n, Valid: true}
+}
+
+func fromNullBoolInt(v sql.NullInt64) *bool {
+	if !v.Valid {
+		return nil
+	}
+	b := v.Int64 != 0
+	return &b
+}
+
 func int64FromFloat(v *float64) *int64 {
 	if v == nil {
 		return nil

@@ -15,6 +15,7 @@ type Commodity struct {
 	Name          string `json:"name"`
 	Type          string `json:"type"`
 	LocalisedName string `json:"localised_name"`
+	FuelCategory  string `json:"fuel_category,omitempty"`
 }
 
 type Recipe struct {
@@ -43,16 +44,35 @@ type Producer struct {
 	ProducedFluid      *string  `json:"produced_fluid,omitempty"`
 }
 
-type Catalog struct {
-	Recipes   []Recipe    `json:"recipes"`
-	Items     []Commodity `json:"items"`
-	Fluids    []Commodity `json:"fluids"`
-	Machines  []Machine   `json:"machines"`
-	Producers []Producer  `json:"producers"`
+type Boiler struct {
+	Name             string   `json:"name"`
+	LocalisedName    string   `json:"localised_name"`
+	InputFluid       *string  `json:"input_fluid,omitempty"`
+	OutputFluid      *string  `json:"output_fluid,omitempty"`
+	FuelCategories   []string `json:"fuel_categories"`
+	EnergySourceType string   `json:"energy_source_type,omitempty"`
+}
 
-	recipeByName  map[string]Recipe
-	machineByName map[string]Machine
-	commodities   map[string]Commodity
+type Generator struct {
+	Name          string  `json:"name"`
+	LocalisedName string  `json:"localised_name"`
+	InputFluid    *string `json:"input_fluid,omitempty"`
+}
+
+type Catalog struct {
+	Recipes    []Recipe    `json:"recipes"`
+	Items      []Commodity `json:"items"`
+	Fluids     []Commodity `json:"fluids"`
+	Machines   []Machine   `json:"machines"`
+	Producers  []Producer  `json:"producers"`
+	Boilers    []Boiler    `json:"boilers"`
+	Generators []Generator `json:"generators"`
+
+	recipeByName    map[string]Recipe
+	machineByName   map[string]Machine
+	boilerByName    map[string]Boiler
+	generatorByName map[string]Generator
+	commodities     map[string]Commodity
 }
 
 var _ chain.Catalog = (*Catalog)(nil)
@@ -62,14 +82,18 @@ func Load(cfg *config.State) (*Catalog, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 	c := &Catalog{
-		Recipes:       []Recipe{},
-		Items:         []Commodity{},
-		Fluids:        []Commodity{},
-		Machines:      []Machine{},
-		Producers:     []Producer{},
-		recipeByName:  map[string]Recipe{},
-		machineByName: map[string]Machine{},
-		commodities:   map[string]Commodity{},
+		Recipes:         []Recipe{},
+		Items:           []Commodity{},
+		Fluids:          []Commodity{},
+		Machines:        []Machine{},
+		Producers:       []Producer{},
+		Boilers:         []Boiler{},
+		Generators:      []Generator{},
+		recipeByName:    map[string]Recipe{},
+		machineByName:   map[string]Machine{},
+		boilerByName:    map[string]Boiler{},
+		generatorByName: map[string]Generator{},
+		commodities:     map[string]Commodity{},
 	}
 	if err := c.loadItems(cfg); err != nil {
 		return nil, err
@@ -84,6 +108,12 @@ func Load(cfg *config.State) (*Catalog, error) {
 		return nil, err
 	}
 	if err := c.loadProducers(cfg); err != nil {
+		return nil, err
+	}
+	if err := c.loadBoilers(cfg); err != nil {
+		return nil, err
+	}
+	if err := c.loadGenerators(cfg); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -223,6 +253,109 @@ func (c *Catalog) loadProducers(cfg *config.State) error {
 	return nil
 }
 
+func (c *Catalog) loadBoilers(cfg *config.State) error {
+	rows, err := cfg.DB.GetAllBoilers(cfg.CTX)
+	if err != nil {
+		return fmt.Errorf("list boilers: %w", err)
+	}
+	for _, row := range rows {
+		if !row.Name.Valid {
+			return fmt.Errorf("boiler %d has no entity name", row.ID)
+		}
+		dbRow := database.Boiler{
+			ID:                row.ID,
+			EntityID:          row.EntityID,
+			EnergySource:      row.EnergySource,
+			EnergyConsumption: row.EnergyConsumption,
+			TargetTemperature: row.TargetTemperature,
+			Mode:              row.Mode,
+			InputFluid:        row.InputFluid,
+			OutputFluid:       row.OutputFluid,
+		}
+		b, err := datatypes.BoilerFromDB(row.Name.String, row.PrototypeType.String, row.EntityOrder, dbRow)
+		if err != nil {
+			return err
+		}
+		cats := []string{}
+		srcType := ""
+		if b.EnergySource != nil {
+			srcType = b.EnergySource.Type
+			if b.EnergySource.FuelCategories != nil {
+				cats = b.EnergySource.FuelCategories
+			}
+		}
+		dto := Boiler{
+			Name:             b.Name,
+			LocalisedName:    rowLocalised(b.Name, row.LocalisedName),
+			FuelCategories:   cats,
+			EnergySourceType: srcType,
+		}
+		if dto.InputFluid, err = c.fluidName(cfg, row.InputFluid); err != nil {
+			return fmt.Errorf("boiler %q input fluid: %w", b.Name, err)
+		}
+		if dto.OutputFluid, err = c.fluidName(cfg, row.OutputFluid); err != nil {
+			return fmt.Errorf("boiler %q output fluid: %w", b.Name, err)
+		}
+		c.Boilers = append(c.Boilers, dto)
+		c.boilerByName[dto.Name] = dto
+	}
+	sort.Slice(c.Boilers, func(i, j int) bool {
+		return displayLess(c.Boilers[i].Name, c.Boilers[i].LocalisedName, c.Boilers[j].Name, c.Boilers[j].LocalisedName)
+	})
+	return nil
+}
+
+func (c *Catalog) loadGenerators(cfg *config.State) error {
+	rows, err := cfg.DB.GetAllGenerators(cfg.CTX)
+	if err != nil {
+		return fmt.Errorf("list generators: %w", err)
+	}
+	for _, row := range rows {
+		if !row.Name.Valid {
+			return fmt.Errorf("generator %d has no entity name", row.ID)
+		}
+		dbRow := database.Generator{
+			ID:                 row.ID,
+			EntityID:           row.EntityID,
+			EnergySource:       row.EnergySource,
+			Effectivity:        row.Effectivity,
+			FluidUsagePerTick:  row.FluidUsagePerTick,
+			MaximumTemperature: row.MaximumTemperature,
+			BurnsFluid:         row.BurnsFluid,
+			InputFluid:         row.InputFluid,
+		}
+		g, err := datatypes.GeneratorFromDB(row.Name.String, row.PrototypeType.String, row.EntityOrder, dbRow)
+		if err != nil {
+			return err
+		}
+		dto := Generator{
+			Name:          g.Name,
+			LocalisedName: rowLocalised(g.Name, row.LocalisedName),
+		}
+		if dto.InputFluid, err = c.fluidName(cfg, row.InputFluid); err != nil {
+			return fmt.Errorf("generator %q input fluid: %w", g.Name, err)
+		}
+		c.Generators = append(c.Generators, dto)
+		c.generatorByName[dto.Name] = dto
+	}
+	sort.Slice(c.Generators, func(i, j int) bool {
+		return displayLess(c.Generators[i].Name, c.Generators[i].LocalisedName, c.Generators[j].Name, c.Generators[j].LocalisedName)
+	})
+	return nil
+}
+
+func (c *Catalog) fluidName(cfg *config.State, id sql.NullInt64) (*string, error) {
+	if !id.Valid {
+		return nil, nil
+	}
+	ent, err := cfg.DB.GetEntityByID(cfg.CTX, id.Int64)
+	if err != nil {
+		return nil, err
+	}
+	name := ent.Name
+	return &name, nil
+}
+
 func (c *Catalog) loadItems(cfg *config.State) error {
 	rows, err := cfg.DB.GetAllItems(cfg.CTX)
 	if err != nil {
@@ -236,7 +369,12 @@ func (c *Catalog) loadItems(cfg *config.State) error {
 		if proto == "" {
 			proto = "item"
 		}
-		dto := Commodity{Name: row.Name.String, Type: proto, LocalisedName: rowLocalised(row.Name.String, row.LocalisedName)}
+		dto := Commodity{
+			Name:          row.Name.String,
+			Type:          proto,
+			LocalisedName: rowLocalised(row.Name.String, row.LocalisedName),
+			FuelCategory:  row.FuelCategory.String,
+		}
 		c.Items = append(c.Items, dto)
 		c.commodities[commodityKey(dto.Name, dto.Type)] = dto
 	}
@@ -294,6 +432,53 @@ func (c *Catalog) Machine(name string) (chain.MachineInfo, bool) {
 		return chain.MachineInfo{}, false
 	}
 	return chain.MachineInfo{Name: m.Name, Categories: m.CraftingCategories}, true
+}
+
+func (c *Catalog) Boiler(name string) (chain.BoilerInfo, bool) {
+	if c == nil {
+		return chain.BoilerInfo{}, false
+	}
+	b, ok := c.boilerByName[name]
+	if !ok {
+		return chain.BoilerInfo{}, false
+	}
+	info := chain.BoilerInfo{Name: b.Name, FuelCategories: b.FuelCategories}
+	if b.InputFluid != nil {
+		info.InputFluid = *b.InputFluid
+	}
+	if b.OutputFluid != nil {
+		info.OutputFluid = *b.OutputFluid
+	}
+	return info, true
+}
+
+func (c *Catalog) Generator(name string) (chain.GeneratorInfo, bool) {
+	if c == nil {
+		return chain.GeneratorInfo{}, false
+	}
+	g, ok := c.generatorByName[name]
+	if !ok {
+		return chain.GeneratorInfo{}, false
+	}
+	info := chain.GeneratorInfo{Name: g.Name}
+	if g.InputFluid != nil {
+		info.InputFluid = *g.InputFluid
+	}
+	return info, true
+}
+
+func (c *Catalog) FuelCategory(name, prototypeType string) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+	if prototypeType == "" {
+		prototypeType = "item"
+	}
+	com, ok := c.commodities[commodityKey(name, prototypeType)]
+	if !ok || com.FuelCategory == "" {
+		return "", false
+	}
+	return com.FuelCategory, true
 }
 
 func (c *Catalog) HasCommodity(name, prototypeType string) bool {

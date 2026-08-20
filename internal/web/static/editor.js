@@ -4,6 +4,8 @@
     items: [],
     fluids: [],
     machines: [],
+    boilers: [],
+    generators: [],
     graph: { nodes: [], edges: [] },
     issues: [],
     selected: null,
@@ -37,6 +39,14 @@
 
   function recipeByName(name) {
     return state.recipes.find((r) => r.name === name);
+  }
+
+  function boilerByName(name) {
+    return state.boilers.find((b) => b.name === name);
+  }
+
+  function generatorByName(name) {
+    return state.generators.find((g) => g.name === name);
   }
 
   function machinesFor(category) {
@@ -74,6 +84,10 @@
   }
 
   function commodityMatches(c, name, type) {
+    if (c && c.fuel_categories && c.fuel_categories.length) {
+      const item = commodities().find((x) => x.name === name && commodityType(x.type) === commodityType(type));
+      return Boolean(item && item.fuel_category && c.fuel_categories.includes(item.fuel_category));
+    }
     return c && c.name === name && commodityType(c.type) === commodityType(type);
   }
 
@@ -99,6 +113,16 @@
     };
   }
 
+  function firstFuelItem(categories) {
+    const cats = categories || [];
+    return state.items.find((i) => i.fuel_category && cats.includes(i.fuel_category));
+  }
+
+  function prototypesMatching(list, kind, name, type, fromDir) {
+    const wantDir = fromDir === "out" ? "in" : "out";
+    return list.filter((p) => matchingPort({ kind, [kind]: p.name }, wantDir, name, type));
+  }
+
   function portsFor(node) {
     if (node.kind === "recipe") {
       const r = recipeByName(node.recipe);
@@ -120,6 +144,57 @@
         required: false,
       }));
       return ins.concat(outs);
+    }
+    if (node.kind === "boiler") {
+      const b = boilerByName(node.boiler);
+      if (!b) return [];
+      const ports = [];
+      let inIdx = 0;
+      if ((b.fuel_categories || []).length) {
+        ports.push({
+          id: "in:" + inIdx,
+          dir: "in",
+          name: "fuel",
+          type: "item",
+          label: "Fuel (" + b.fuel_categories.join(", ") + ")",
+          required: true,
+          fuel_categories: b.fuel_categories,
+        });
+        inIdx += 1;
+      }
+      if (b.input_fluid) {
+        ports.push({
+          id: "in:" + inIdx,
+          dir: "in",
+          name: b.input_fluid,
+          type: "fluid",
+          label: commodityLabel(b.input_fluid, "fluid"),
+          required: true,
+        });
+      }
+      if (b.output_fluid) {
+        ports.push({
+          id: "out:0",
+          dir: "out",
+          name: b.output_fluid,
+          type: "fluid",
+          label: commodityLabel(b.output_fluid, "fluid"),
+          required: false,
+        });
+      }
+      return ports;
+    }
+    if (node.kind === "generator") {
+      const g = generatorByName(node.generator);
+      if (!g || !g.input_fluid) return [];
+      return [{
+        id: "in:0",
+        dir: "in",
+        name: g.input_fluid,
+        type: "fluid",
+        label: commodityLabel(g.input_fluid, "fluid"),
+        required: true,
+      }];
     }
     const type = node.prototype_type || "item";
     const itemLabel = commodityLabel(node.item_name, type);
@@ -153,16 +228,20 @@
   }
 
   async function loadCatalog() {
-    const [recipes, items, fluids, machines] = await Promise.all([
+    const [recipes, items, fluids, machines, boilers, generators] = await Promise.all([
       fetchJSON("/api/recipes"),
       fetchJSON("/api/items"),
       fetchJSON("/api/fluids"),
       fetchJSON("/api/machines"),
+      fetchJSON("/api/boilers"),
+      fetchJSON("/api/generators"),
     ]);
     state.recipes = recipes || [];
     state.items = items || [];
     state.fluids = fluids || [];
     state.machines = machines || [];
+    state.boilers = boilers || [];
+    state.generators = generators || [];
   }
 
   async function fetchJSON(url, opts) {
@@ -227,6 +306,16 @@
       item_name: first ? first.name : "",
       prototype_type: first ? first.type : "item",
     });
+  }
+
+  function addBoiler() {
+    const first = state.boilers[0];
+    addNode({ kind: "boiler", boiler: first ? first.name : "" });
+  }
+
+  function addGenerator() {
+    const first = state.generators[0];
+    addNode({ kind: "generator", generator: first ? first.name : "" });
   }
 
   function makeNode(partial) {
@@ -335,6 +424,10 @@
     const body = el("div", { className: "body" });
     if (node.kind === "recipe") {
       body.append(machineSelect(node));
+    } else if (node.kind === "boiler") {
+      body.append(prototypeSelect(node, "Boiler", "boiler", state.boilers));
+    } else if (node.kind === "generator") {
+      body.append(prototypeSelect(node, "Generator", "generator", state.generators));
     } else {
       body.append(itemSelect(node));
     }
@@ -349,6 +442,8 @@
 
   function nodeTitle(node) {
     if (node.kind === "recipe") return recipeLabel(node.recipe) || "recipe";
+    if (node.kind === "boiler") return labelOf(boilerByName(node.boiler)) || node.boiler || "boiler";
+    if (node.kind === "generator") return labelOf(generatorByName(node.generator)) || node.generator || "generator";
     return commodityLabel(node.item_name, node.prototype_type) || node.item_name || node.kind;
   }
 
@@ -364,6 +459,25 @@
     }
     sel.addEventListener("change", () => {
       node.machine = sel.value;
+      scheduleValidate();
+    });
+    wrap.append(sel);
+    return wrap;
+  }
+
+  function prototypeSelect(node, label, field, list) {
+    const wrap = el("label", { className: "field", text: label });
+    const sel = el("select");
+    sel.append(el("option", { value: "", text: "(none)" }));
+    for (const p of list) {
+      const opt = el("option", { value: p.name, text: labelOf(p) });
+      if (p.name === node[field]) opt.selected = true;
+      sel.append(opt);
+    }
+    sel.addEventListener("change", () => {
+      node[field] = sel.value;
+      pruneEdges();
+      render();
       scheduleValidate();
     });
     wrap.append(sel);
@@ -578,10 +692,12 @@
     });
     ioBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
+      const cats = wiring.port.fuel_categories || [];
+      const fuel = cats.length ? firstFuelItem(cats) : null;
       placeConnectedNode({
         kind: fromIn ? "source" : "sink",
-        item_name: wiring.port.name,
-        prototype_type: commodityType(wiring.port.type),
+        item_name: fuel ? fuel.name : wiring.port.name,
+        prototype_type: fuel ? (fuel.type || "item") : commodityType(wiring.port.type),
       }, wiring);
     });
 
@@ -592,6 +708,26 @@
     });
 
     menu.append(ioBtn, recipeBtn);
+
+    const boilers = prototypesMatching(state.boilers, "boiler", wiring.port.name, wiring.port.type, wiring.port.dir);
+    if (boilers.length) {
+      const btn = el("button", { type: "button", role: "menuitem", text: "Add boiler" });
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        placeConnectedNode({ kind: "boiler", boiler: boilers[0].name }, wiring);
+      });
+      menu.append(btn);
+    }
+
+    const generators = prototypesMatching(state.generators, "generator", wiring.port.name, wiring.port.type, wiring.port.dir);
+    if (generators.length) {
+      const btn = el("button", { type: "button", role: "menuitem", text: "Add generator" });
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        placeConnectedNode({ kind: "generator", generator: generators[0].name }, wiring);
+      });
+      menu.append(btn);
+    }
     menu.addEventListener("pointerdown", (ev) => ev.stopPropagation());
     menu.addEventListener("mousedown", (ev) => ev.stopPropagation());
     canvas.append(menu);
@@ -681,6 +817,8 @@
 
   document.getElementById("add-source").addEventListener("click", () => addIO("source"));
   document.getElementById("add-sink").addEventListener("click", () => addIO("sink"));
+  document.getElementById("add-boiler").addEventListener("click", addBoiler);
+  document.getElementById("add-generator").addEventListener("click", addGenerator);
   recipeSearch.addEventListener("input", renderSidebar);
   document.getElementById("download").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(state.graph, null, 2)], { type: "application/json" });

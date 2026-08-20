@@ -52,8 +52,8 @@ func TestLoadFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if stats.Items != 1 || stats.Fluids != 1 || stats.Resources != 1 || stats.Recipes != 1 || stats.AssemblyMachines != 1 || stats.Furnaces != 1 || stats.ResourceProducers != 3 {
-		t.Errorf("stats typed = %+v, want 1 of each plus 3 producers", stats)
+	if stats.Items != 1 || stats.Fluids != 3 || stats.Resources != 1 || stats.Recipes != 1 || stats.AssemblyMachines != 1 || stats.Furnaces != 1 || stats.ResourceProducers != 3 || stats.Boilers != 2 || stats.Generators != 1 {
+		t.Errorf("stats typed = %+v, want 1 of each plus 3 fluids, 3 producers, 2 boilers, 1 generator", stats)
 	}
 	if stats.Skipped != 1 {
 		t.Errorf("Skipped = %d, want 1", stats.Skipped)
@@ -98,8 +98,8 @@ func TestLoadFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load upsert: %v", err)
 	}
-	if again.Items != 1 || again.Fluids != 1 || again.Resources != 1 || again.Recipes != 1 || again.AssemblyMachines != 1 || again.Furnaces != 1 || again.ResourceProducers != 3 {
-		t.Errorf("upsert stats typed = %+v, want 1 of each plus 3 producers", again)
+	if again.Items != 1 || again.Fluids != 3 || again.Resources != 1 || again.Recipes != 1 || again.AssemblyMachines != 1 || again.Furnaces != 1 || again.ResourceProducers != 3 || again.Boilers != 2 || again.Generators != 1 {
+		t.Errorf("upsert stats typed = %+v, want 1 of each plus 3 fluids, 3 producers, 2 boilers, 1 generator", again)
 	}
 	assertTypedCounts(t, cfg)
 }
@@ -132,7 +132,7 @@ func assertTypedCounts(t *testing.T, cfg *config.State) {
 	items, err := cfg.DB.GetAllItemValues(cfg.CTX)
 	assertLen(t, "items", 1, items, err)
 	fluids, err := cfg.DB.GetAllFluidValues(cfg.CTX)
-	assertLen(t, "fluids", 1, fluids, err)
+	assertLen(t, "fluids", 3, fluids, err)
 	resources, err := cfg.DB.GetAllResourceValues(cfg.CTX)
 	assertLen(t, "resources", 1, resources, err)
 	recipes, err := cfg.DB.GetAllRecipeValues(cfg.CTX)
@@ -141,6 +141,10 @@ func assertTypedCounts(t *testing.T, cfg *config.State) {
 	assertLen(t, "assembling machines", 2, machines, err)
 	producers, err := cfg.DB.GetAllResourceProducerValues(cfg.CTX)
 	assertLen(t, "resource producers", 3, producers, err)
+	boilers, err := cfg.DB.GetAllBoilerValues(cfg.CTX)
+	assertLen(t, "boilers", 2, boilers, err)
+	generators, err := cfg.DB.GetAllGeneratorValues(cfg.CTX)
+	assertLen(t, "generators", 1, generators, err)
 }
 
 func assertLen[T any](t *testing.T, kind string, want int, rows []T, err error) {

@@ -5,9 +5,11 @@ import "fmt"
 type NodeKind string
 
 const (
-	KindRecipe NodeKind = "recipe"
-	KindSource NodeKind = "source"
-	KindSink   NodeKind = "sink"
+	KindRecipe    NodeKind = "recipe"
+	KindSource    NodeKind = "source"
+	KindSink      NodeKind = "sink"
+	KindBoiler    NodeKind = "boiler"
+	KindGenerator NodeKind = "generator"
 )
 
 type Direction string
@@ -26,11 +28,12 @@ type Node interface {
 }
 
 type Port struct {
-	ID            string    `json:"id"`
-	ItemName      string    `json:"item_name"`
-	PrototypeType string    `json:"prototype_type"`
-	Direction     Direction `json:"direction"`
-	Required      bool      `json:"required"`
+	ID             string    `json:"id"`
+	ItemName       string    `json:"item_name"`
+	PrototypeType  string    `json:"prototype_type"`
+	Direction      Direction `json:"direction"`
+	Required       bool      `json:"required"`
+	FuelCategories []string  `json:"fuel_categories,omitempty"`
 }
 
 type Edge struct {
@@ -55,6 +58,8 @@ type NodeDoc struct {
 	Y             float64  `json:"y"`
 	Recipe        string   `json:"recipe,omitempty"`
 	Machine       string   `json:"machine,omitempty"`
+	Boiler        string   `json:"boiler,omitempty"`
+	Generator     string   `json:"generator,omitempty"`
 	ItemName      string   `json:"item_name,omitempty"`
 	PrototypeType string   `json:"prototype_type,omitempty"`
 }
@@ -70,6 +75,18 @@ func (n NodeDoc) Ports(cat Catalog) []Port {
 			return nil
 		}
 		return recipePorts(info)
+	case KindBoiler:
+		info, ok := cat.Boiler(n.Boiler)
+		if !ok {
+			return nil
+		}
+		return boilerPorts(info)
+	case KindGenerator:
+		info, ok := cat.Generator(n.Generator)
+		if !ok {
+			return nil
+		}
+		return generatorPorts(info)
 	case KindSource, KindSink:
 		return ioPorts(n.NodeKind, n.ItemName, n.PrototypeType)
 	default:
@@ -102,6 +119,54 @@ func recipePorts(info RecipeInfo) []Port {
 		})
 	}
 	return ports
+}
+
+func boilerPorts(info BoilerInfo) []Port {
+	ports := make([]Port, 0, 3)
+	in := 0
+	if len(info.FuelCategories) > 0 {
+		ports = append(ports, Port{
+			ID:             PortID(DirIn, in),
+			ItemName:       "fuel",
+			PrototypeType:  "item",
+			Direction:      DirIn,
+			Required:       true,
+			FuelCategories: info.FuelCategories,
+		})
+		in++
+	}
+	if info.InputFluid != "" {
+		ports = append(ports, Port{
+			ID:            PortID(DirIn, in),
+			ItemName:      info.InputFluid,
+			PrototypeType: "fluid",
+			Direction:     DirIn,
+			Required:      true,
+		})
+	}
+	if info.OutputFluid != "" {
+		ports = append(ports, Port{
+			ID:            PortID(DirOut, 0),
+			ItemName:      info.OutputFluid,
+			PrototypeType: "fluid",
+			Direction:     DirOut,
+			Required:      false,
+		})
+	}
+	return ports
+}
+
+func generatorPorts(info GeneratorInfo) []Port {
+	if info.InputFluid == "" {
+		return nil
+	}
+	return []Port{{
+		ID:            PortID(DirIn, 0),
+		ItemName:      info.InputFluid,
+		PrototypeType: "fluid",
+		Direction:     DirIn,
+		Required:      true,
+	}}
 }
 
 func ioPorts(kind NodeKind, name, protoType string) []Port {

@@ -12,7 +12,7 @@ import (
 )
 
 type DatadumpDatatype interface {
-	Entity | Item | Fluid | Resource | Recipe | AssemblyMachine | ResourceProducer
+	Entity | Item | Fluid | Resource | Recipe | AssemblyMachine | ResourceProducer | Boiler | Generator
 }
 
 type DatatypeEntry[U interface {
@@ -22,7 +22,9 @@ type DatatypeEntry[U interface {
 		database.Resource |
 		database.Recipe |
 		database.AssemblyMachine |
-		database.ResourceProducer
+		database.ResourceProducer |
+		database.Boiler |
+		database.Generator
 }] interface {
 	json.Unmarshaler
 	AddToDB(cfg *config.State) (U, error)
@@ -158,6 +160,8 @@ var (
 	_ DatatypeEntry[database.Recipe]           = (*Recipe)(nil)
 	_ DatatypeEntry[database.AssemblyMachine]  = (*AssemblyMachine)(nil)
 	_ DatatypeEntry[database.ResourceProducer] = (*ResourceProducer)(nil)
+	_ DatatypeEntry[database.Boiler]           = (*Boiler)(nil)
+	_ DatatypeEntry[database.Generator]        = (*Generator)(nil)
 )
 
 func (e *Entity) GetEntityID(cfg *config.State) (int64, error) {

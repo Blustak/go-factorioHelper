@@ -6,7 +6,8 @@
       "order": "a[wood]",
       "stack_size": 100,
       "weight": 2000,
-      "fuel_value": "2MJ"
+      "fuel_value": "2MJ",
+      "fuel_category": "chemical"
     }
   },
   "fluid": {
@@ -15,6 +16,21 @@
       "name": "crude-oil",
       "order": "a[fluid]-b[oil]-a[crude-oil]",
       "default_temperature": 25
+    },
+    "water": {
+      "type": "fluid",
+      "name": "water",
+      "order": "a[fluid]-a[water]",
+      "default_temperature": 15,
+      "max_temperature": 100
+    },
+    "steam": {
+      "type": "fluid",
+      "name": "steam",
+      "order": "a[fluid]-b[steam]",
+      "default_temperature": 15,
+      "max_temperature": 1000,
+      "gas_temperature": 15
     }
   },
   "resource": {
@@ -124,6 +140,47 @@
     "lab": {
       "type": "lab",
       "name": "lab"
+    }
+  },
+  "boiler": {
+    "boiler": {
+      "type": "boiler",
+      "name": "boiler",
+      "energy_source": {
+        "type": "burner",
+        "fuel_categories": ["chemical"],
+        "effectivity": 1,
+        "fuel_inventory_size": 1,
+        "emissions_per_minute": {"pollution": 30}
+      },
+      "energy_consumption": "1.8MW",
+      "target_temperature": 165,
+      "mode": "output-to-separate-pipe",
+      "fluid_box": {"filter": "water"},
+      "output_fluid_box": {"filter": "steam"}
+    },
+    "heat-exchanger": {
+      "type": "boiler",
+      "name": "heat-exchanger",
+      "energy_source": {"type": "heat"},
+      "energy_consumption": "10MW",
+      "target_temperature": 500,
+      "fluid_box": {"filter": "water"},
+      "output_fluid_box": {"filter": "steam"}
+    }
+  },
+  "generator": {
+    "steam-engine": {
+      "type": "generator",
+      "name": "steam-engine",
+      "effectivity": 1,
+      "fluid_usage_per_tick": 0.5,
+      "maximum_temperature": 165,
+      "fluid_box": {"filter": "steam"},
+      "energy_source": {
+        "type": "electric",
+        "usage_priority": "secondary-output"
+      }
     }
   }
 }

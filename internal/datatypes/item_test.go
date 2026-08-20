@@ -31,6 +31,37 @@ func TestItemUnmarshalJSON(t *testing.T) {
 	if item.FuelValue == nil || *item.FuelValue != 2e6 {
 		t.Errorf("FuelValue = %v, want 2e6", item.FuelValue)
 	}
+	if item.FuelCategory == nil || *item.FuelCategory != "biomass" {
+		t.Errorf("FuelCategory = %v, want biomass", item.FuelCategory)
+	}
+}
+
+func TestItemFuelCategoryDefaultsToChemical(t *testing.T) {
+	var item Item
+	if err := json.Unmarshal([]byte(`{
+		"type": "item",
+		"name": "coal",
+		"fuel_value": "4MJ"
+	}`), &item); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if item.FuelCategory == nil || *item.FuelCategory != DefaultFuelCategory {
+		t.Errorf("FuelCategory = %v, want %q", item.FuelCategory, DefaultFuelCategory)
+	}
+}
+
+func TestItemNoFuelOmitsCategory(t *testing.T) {
+	var item Item
+	if err := json.Unmarshal([]byte(`{
+		"type": "item",
+		"name": "iron-plate",
+		"stack_size": 100
+	}`), &item); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if item.FuelCategory != nil {
+		t.Errorf("FuelCategory = %v, want nil", item.FuelCategory)
+	}
 }
 
 func TestItemAddGetRoundTrip(t *testing.T) {
@@ -64,6 +95,9 @@ func TestItemAddGetRoundTrip(t *testing.T) {
 	}
 	if inserted.BurntResult.Int64 != ash.ID {
 		t.Errorf("BurntResult = %d, want ash id %d", inserted.BurntResult.Int64, ash.ID)
+	}
+	if !inserted.FuelCategory.Valid || inserted.FuelCategory.String != DefaultFuelCategory {
+		t.Errorf("FuelCategory = %+v, want %q", inserted.FuelCategory, DefaultFuelCategory)
 	}
 
 	got, err := item.GetFromDB(cfg)

@@ -75,7 +75,7 @@ func Validate(g Graph, cat Catalog) Result {
 		} else {
 			seenEdges[e.ID]++
 		}
-		issues = append(issues, validateEdge(e, nodes, portIndex, seenPair, incoming)...)
+		issues = append(issues, validateEdge(e, nodes, portIndex, seenPair, incoming, cat)...)
 	}
 	for id, n := range seenEdges {
 		if n > 1 {
@@ -122,6 +122,16 @@ func validateNode(n NodeDoc, cat Catalog) []Issue {
 	switch n.NodeKind {
 	case KindRecipe:
 		return validateRecipeNode(n, cat)
+	case KindBoiler:
+		return validateNamedNode(n.NodeID, n.Boiler, "boiler", func(name string) bool {
+			_, ok := cat.Boiler(name)
+			return ok
+		})
+	case KindGenerator:
+		return validateNamedNode(n.NodeID, n.Generator, "generator", func(name string) bool {
+			_, ok := cat.Generator(name)
+			return ok
+		})
 	case KindSource, KindSink:
 		return validateIONode(n, cat)
 	default:
@@ -131,6 +141,25 @@ func validateNode(n NodeDoc, cat Catalog) []Issue {
 			Message: fmt.Sprintf("unknown node kind %q", n.NodeKind),
 		}}
 	}
+}
+
+func validateNamedNode(nodeID, name, kind string, exists func(string) bool) []Issue {
+	code := "unknown_" + kind
+	if name == "" {
+		return []Issue{{
+			NodeID:  nodeID,
+			Code:    code,
+			Message: kind + " node has no " + kind,
+		}}
+	}
+	if !exists(name) {
+		return []Issue{{
+			NodeID:  nodeID,
+			Code:    code,
+			Message: fmt.Sprintf("unknown %s %q", kind, name),
+		}}
+	}
+	return nil
 }
 
 func validateRecipeNode(n NodeDoc, cat Catalog) []Issue {
@@ -189,7 +218,7 @@ func validateIONode(n NodeDoc, cat Catalog) []Issue {
 	return nil
 }
 
-func validateEdge(e Edge, nodes map[string]NodeDoc, portIndex map[string]map[string]Port, seenPair map[string]struct{}, incoming map[string]int) []Issue {
+func validateEdge(e Edge, nodes map[string]NodeDoc, portIndex map[string]map[string]Port, seenPair map[string]struct{}, incoming map[string]int, cat Catalog) []Issue {
 	var issues []Issue
 	if e.FromNode == "" || e.ToNode == "" || e.FromPort == "" || e.ToPort == "" {
 		issues = append(issues, Issue{
@@ -228,7 +257,7 @@ func validateEdge(e Edge, nodes map[string]NodeDoc, portIndex map[string]map[str
 		})
 		return issues
 	}
-	if fromPort.ItemName != toPort.ItemName || fromPort.PrototypeType != toPort.PrototypeType {
+	if !portsCompatible(fromPort, toPort, cat) {
 		issues = append(issues, Issue{
 			EdgeID: e.ID,
 			Code:   "type_mismatch",
@@ -248,6 +277,26 @@ func validateEdge(e Edge, nodes map[string]NodeDoc, portIndex map[string]map[str
 	}
 	incoming[portKey(e.ToNode, e.ToPort)]++
 	return issues
+}
+
+func portsCompatible(from, to Port, cat Catalog) bool {
+	if len(to.FuelCategories) > 0 {
+		fuel, ok := cat.FuelCategory(from.ItemName, from.PrototypeType)
+		if !ok {
+			return false
+		}
+		return containsString(to.FuelCategories, fuel)
+	}
+	return from.ItemName == to.ItemName && from.PrototypeType == to.PrototypeType
+}
+
+func containsString(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
 }
 
 func machineSupports(machine MachineInfo, category string) bool {

@@ -199,11 +199,12 @@ func TestGetItemsAndFluids(t *testing.T) {
 		Name          string `json:"name"`
 		Type          string `json:"type"`
 		LocalisedName string `json:"localised_name"`
+		FuelCategory  string `json:"fuel_category"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &items); err != nil {
 		t.Fatalf("items: %v", err)
 	}
-	if len(items) != 1 || items[0].Name != "wood" || items[0].LocalisedName != "Wood" {
+	if len(items) != 1 || items[0].Name != "wood" || items[0].LocalisedName != "Wood" || items[0].FuelCategory != "chemical" {
 		t.Fatalf("items = %+v", items)
 	}
 
@@ -217,8 +218,20 @@ func TestGetItemsAndFluids(t *testing.T) {
 	if err := json.Unmarshal(res.Body.Bytes(), &fluids); err != nil {
 		t.Fatalf("fluids: %v", err)
 	}
-	if len(fluids) != 1 || fluids[0].Name != "crude-oil" || fluids[0].Type != "fluid" || fluids[0].LocalisedName != "Crude oil" {
-		t.Fatalf("fluids = %+v", fluids)
+	if len(fluids) != 3 {
+		t.Fatalf("fluids = %+v, want 3", fluids)
+	}
+	foundOil := false
+	for _, f := range fluids {
+		if f.Name == "crude-oil" {
+			foundOil = true
+			if f.Type != "fluid" || f.LocalisedName != "Crude oil" {
+				t.Fatalf("crude-oil = %+v", f)
+			}
+		}
+	}
+	if !foundOil {
+		t.Fatal("crude-oil missing from fluids")
 	}
 }
 
@@ -271,6 +284,66 @@ func TestGetProducersByCategory(t *testing.T) {
 	}
 	if !foundPump {
 		t.Fatal("offshore-pump missing from producers")
+	}
+}
+
+func TestGetBoilersAndGenerators(t *testing.T) {
+	srv := testServer(t)
+
+	res := httptest.NewRecorder()
+	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/boilers", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d", res.Code)
+	}
+	var boilers []struct {
+		Name           string   `json:"name"`
+		FuelCategories []string `json:"fuel_categories"`
+		InputFluid     *string  `json:"input_fluid"`
+		OutputFluid    *string  `json:"output_fluid"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &boilers); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(boilers) != 2 {
+		t.Fatalf("boilers = %+v, want 2", boilers)
+	}
+	foundBurner := false
+	foundHeat := false
+	for _, b := range boilers {
+		switch b.Name {
+		case "boiler":
+			foundBurner = true
+			if len(b.FuelCategories) != 1 || b.FuelCategories[0] != "chemical" {
+				t.Errorf("boiler fuel_categories = %v", b.FuelCategories)
+			}
+			if b.InputFluid == nil || *b.InputFluid != "water" || b.OutputFluid == nil || *b.OutputFluid != "steam" {
+				t.Errorf("boiler fluids = %v -> %v", b.InputFluid, b.OutputFluid)
+			}
+		case "heat-exchanger":
+			foundHeat = true
+			if len(b.FuelCategories) != 0 {
+				t.Errorf("heat-exchanger fuel_categories = %v", b.FuelCategories)
+			}
+		}
+	}
+	if !foundBurner || !foundHeat {
+		t.Fatalf("boilers = %+v", boilers)
+	}
+
+	res = httptest.NewRecorder()
+	srv.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/generators", nil))
+	var generators []struct {
+		Name       string  `json:"name"`
+		InputFluid *string `json:"input_fluid"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &generators); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(generators) != 1 || generators[0].Name != "steam-engine" {
+		t.Fatalf("generators = %+v", generators)
+	}
+	if generators[0].InputFluid == nil || *generators[0].InputFluid != "steam" {
+		t.Errorf("steam-engine input_fluid = %v", generators[0].InputFluid)
 	}
 }
 
