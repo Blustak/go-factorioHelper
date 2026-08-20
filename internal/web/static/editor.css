@@ -1,0 +1,259 @@
+:root {
+  --bg: #161412;
+  --panel: #211e1b;
+  --card: #2b2622;
+  --card-border: #4a4036;
+  --text: #f0e6d8;
+  --muted: #a89880;
+  --accent: #e08a2c;
+  --source: #3d7a4a;
+  --sink: #3d6a8a;
+  --error: #d4533c;
+  --waste: #8a7a4a;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+}
+
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--panel);
+  border-right: 1px solid var(--card-border);
+  overflow: auto;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.hint, .field, #issues {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+input, select, button {
+  font: inherit;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover, .file-label:hover {
+  border-color: var(--accent);
+}
+
+#recipe-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  max-height: 40vh;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+}
+
+#recipe-list li {
+  margin: 0;
+}
+
+#recipe-list button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--card-border);
+  background: transparent;
+}
+
+#recipe-list button:hover {
+  background: #3a332c;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.file-label {
+  display: block;
+  text-align: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.file-label input {
+  display: none;
+}
+
+#issues {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+#issues .ok { color: var(--source); }
+#issues .err {
+  color: var(--error);
+  padding: 0.35rem;
+  background: #3a201c;
+  border-radius: 4px;
+}
+
+main {
+  min-width: 0;
+  min-height: 0;
+}
+
+#canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-image:
+    linear-gradient(#25211d 1px, transparent 1px),
+    linear-gradient(90deg, #25211d 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+#wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+#wires path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+#wires path.error { stroke: var(--error); }
+#wires path.preview { stroke-dasharray: 6 4; pointer-events: none; }
+
+#nodes {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.node {
+  position: absolute;
+  min-width: 180px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px #0006;
+  user-select: none;
+}
+
+.node.selected { border-color: var(--accent); }
+.node.source { border-top: 3px solid var(--source); }
+.node.sink { border-top: 3px solid var(--sink); }
+.node.recipe { border-top: 3px solid var(--accent); }
+.node.error { box-shadow: 0 0 0 1px var(--error); }
+
+.node header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  cursor: grab;
+  font-size: 0.8rem;
+  font-weight: 650;
+  background: #322c27;
+  border-radius: 5px 5px 0 0;
+}
+
+.node header .kind {
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+}
+
+.node .body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem 0.2rem 0.5rem;
+}
+
+.node .field {
+  padding: 0 0.45rem;
+}
+
+.ports {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ports .col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.port {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.port.out { flex-direction: row-reverse; text-align: right; }
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #1b1714;
+  flex: 0 0 auto;
+  cursor: crosshair;
+}
+
+.port.in .dot { background: #6aa8d8; }
+.port.out.waste .dot { background: var(--waste); }
+.port.error .dot { background: var(--error); }
+.port.error { color: var(--error); }

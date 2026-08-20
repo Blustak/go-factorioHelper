@@ -30,3 +30,19 @@ func int64FromFloat(v *float64) *int64 {
 	n := int64(*v)
 	return &n
 }
+
+func fromNullString(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	s := v.String
+	return &s
+}
+
+func fromNullFloat64(v sql.NullFloat64) *float64 {
+	if !v.Valid {
+		return nil
+	}
+	f := v.Float64
+	return &f
+}
