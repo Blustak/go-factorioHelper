@@ -9,10 +9,14 @@
     selected: null,
     seq: 1,
     draggingNode: null,
+    panning: null,
     wiring: null,
     dropMenu: false,
     validateTimer: 0,
   };
+
+  const WORLD_PAD = 240;
+  const PAN_THRESHOLD = 4;
 
   const recipeList = document.getElementById("recipe-list");
   const recipeSearch = document.getElementById("recipe-search");
@@ -290,6 +294,24 @@
     for (const node of state.graph.nodes) {
       nodesEl.append(renderNode(node));
     }
+    syncWorldSize();
+  }
+
+  function syncWorldSize() {
+    let maxX = canvas.clientWidth;
+    let maxY = canvas.clientHeight;
+    for (const card of nodesEl.querySelectorAll(".node")) {
+      maxX = Math.max(maxX, card.offsetLeft + card.offsetWidth + WORLD_PAD);
+      maxY = Math.max(maxY, card.offsetTop + card.offsetHeight + WORLD_PAD);
+    }
+    const width = maxX + "px";
+    const height = maxY + "px";
+    nodesEl.style.width = width;
+    nodesEl.style.height = height;
+    wiresEl.style.width = width;
+    wiresEl.style.height = height;
+    wiresEl.setAttribute("width", String(maxX));
+    wiresEl.setAttribute("height", String(maxY));
   }
 
   function renderNode(node) {
@@ -679,6 +701,16 @@
   });
 
   window.addEventListener("pointermove", (ev) => {
+    if (state.panning) {
+      const dx = ev.clientX - state.panning.startX;
+      const dy = ev.clientY - state.panning.startY;
+      if (!state.panning.active && Math.hypot(dx, dy) < PAN_THRESHOLD) return;
+      state.panning.active = true;
+      canvas.classList.add("panning");
+      canvas.scrollLeft = state.panning.scrollLeft - dx;
+      canvas.scrollTop = state.panning.scrollTop - dy;
+      return;
+    }
     if (state.draggingNode) {
       const node = state.graph.nodes.find((n) => n.id === state.draggingNode.id);
       if (!node) return;
@@ -690,6 +722,7 @@
         card.style.left = node.x + "px";
         card.style.top = node.y + "px";
       }
+      syncWorldSize();
       drawWires();
     }
     if (state.wiring && !state.dropMenu) {
@@ -699,13 +732,22 @@
       drawWires();
     }
   });
+  function endPan() {
+    if (!state.panning) return;
+    state.panning = null;
+    canvas.classList.remove("panning");
+  }
+
   window.addEventListener("pointerup", (ev) => {
+    endPan();
     if (state.draggingNode) {
       state.draggingNode = null;
       for (const h of nodesEl.querySelectorAll("header")) h.style.cursor = "";
+      syncWorldSize();
     }
     if (state.wiring && !state.dropMenu) finishWire(ev);
   });
+  window.addEventListener("pointercancel", endPan);
   window.addEventListener("pointerdown", (ev) => {
     if (!state.dropMenu) return;
     const menu = document.getElementById("drop-menu");
@@ -725,12 +767,21 @@
       deleteSelected();
     }
   });
-  canvas.addEventListener("mousedown", (ev) => {
-    if (ev.target === canvas || ev.target === nodesEl || ev.target === wiresEl) {
-      state.selected = null;
-      syncSelection();
-    }
+  canvas.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    if (state.draggingNode || state.wiring || state.dropMenu) return;
+    if (ev.target !== canvas && ev.target !== nodesEl && ev.target !== wiresEl) return;
+    state.selected = null;
+    syncSelection();
+    state.panning = {
+      startX: ev.clientX,
+      startY: ev.clientY,
+      scrollLeft: canvas.scrollLeft,
+      scrollTop: canvas.scrollTop,
+      active: false,
+    };
   });
+  window.addEventListener("resize", syncWorldSize);
 
   loadCatalog()
     .then(() => {
