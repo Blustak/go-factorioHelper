@@ -304,6 +304,7 @@ FROM items
 LEFT JOIN entities
 ON entities.id = items.entity_id
 WHERE entities.name LIKE ?1
+OR entities.localised_name LIKE ?1
 ORDER BY entities.name
 `
 

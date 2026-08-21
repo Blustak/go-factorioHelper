@@ -38,7 +38,7 @@ func testState(t *testing.T) *config.State {
 		t.Fatalf("goose up: %v", err)
 	}
 
-	return config.New(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return config.New(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 }
 
 func testdataPath(t *testing.T, name string) string {

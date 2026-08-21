@@ -45,3 +45,12 @@ ingredient = @ingredient,
 results = @results
 WHERE id = @id
 RETURNING *;
+
+-- name: SearchRecipesByName :many
+SELECT entities.name, recipes.ingredient, recipes.results, recipes.main_product, recipes.energy_required, recipes.category
+FROM recipes
+LEFT JOIN entities
+ON entities.id = recipes.entity_id
+WHERE entities.name LIKE @query
+OR entities.localised_name LIKE @query
+ORDER BY entities.name;

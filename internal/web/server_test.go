@@ -41,7 +41,7 @@ func testServer(t *testing.T) *Server {
 		t.Fatalf("goose up: %v", err)
 	}
 
-	cfg := config.New(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	cfg := config.New(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
 	if _, err := dump.Load(cfg, dumpFixture(t)); err != nil {
 		t.Fatalf("dump.Load: %v", err)
 	}

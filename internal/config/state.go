@@ -16,34 +16,31 @@ import (
 )
 
 type State struct {
-	DB  *database.Queries
-	Log *slog.Logger
-	CTX context.Context
-  Writer *bufio.Writer
+	DB     *database.Queries
+	Log    *slog.Logger
+	CTX    context.Context
+	Writer *bufio.Writer
 
 	dbFile  *sql.DB
 	logFile *os.File
-  outFile io.WriteCloser
 }
 
-func New(ctx context.Context, db *sql.DB, log *slog.Logger, w io.WriteCloser) *State {
+func New(ctx context.Context, db *sql.DB, log *slog.Logger, w io.Writer) *State {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
-
-  if w == nil {
-    w = os.Stdout
-  }
+	if w == nil {
+		w = os.Stdout
+	}
 	return &State{
 		DB:     database.New(db),
 		Log:    log,
 		CTX:    ctx,
-    Writer: bufio.NewWriter(w),
+		Writer: bufio.NewWriter(w),
 		dbFile: db,
-    outFile: w,
 	}
 }
 
@@ -68,7 +65,7 @@ func Open(ctx context.Context, dbString string) (*State, error) {
 		return nil, fmt.Errorf("enable foreign keys: %w", err)
 	}
 
-	return New(ctx, db, slog.New(slog.NewTextHandler(os.Stderr, nil))), nil
+	return New(ctx, db, slog.New(slog.NewTextHandler(os.Stderr, nil)), nil), nil
 }
 
 func (s *State) Close() error {
@@ -76,6 +73,9 @@ func (s *State) Close() error {
 		return nil
 	}
 	var errs []error
+	if s.Writer != nil {
+		errs = append(errs, s.Writer.Flush())
+	}
 	if s.logFile != nil {
 		errs = append(errs, s.logFile.Close())
 		s.logFile = nil

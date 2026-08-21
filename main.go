@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
+	"github.com/Blustak/go-factorioHelper/internal/catalog"
 	"github.com/Blustak/go-factorioHelper/internal/config"
 	"github.com/Blustak/go-factorioHelper/internal/dump"
 	"github.com/Blustak/go-factorioHelper/internal/web"
@@ -15,6 +17,7 @@ import (
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s load <dump.json>\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "       %s serve [addr]\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "       %s search [category] <query>\n", os.Args[0])
 }
 
 func main() {
@@ -89,11 +92,51 @@ func run(args []string) int {
 			return 1
 		}
 		return 0
+	case "search":
+		category, query, err := parseSearchArgs(args[1:])
+		if err != nil {
+			usage()
+			fmt.Fprintln(os.Stderr, err)
+			return 2
+		}
+		cfg, err := openDB()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		defer cfg.Close()
+
+		if err := (&catalog.Catalog{}).Query(cfg, category, query); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
 	default:
 		usage()
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func parseSearchArgs(args []string) (category *string, query string, err error) {
+	if len(args) == 0 {
+		return nil, "", fmt.Errorf("search requires a query")
+	}
+	if len(args) == 1 {
+		if strings.TrimSpace(args[0]) == "" {
+			return nil, "", fmt.Errorf("search requires a query")
+		}
+		return nil, args[0], nil
+	}
+	cat := args[0]
+	if cat != "items" && cat != "recipes" {
+		return nil, "", fmt.Errorf("unknown category: %s", cat)
+	}
+	query = strings.Join(args[1:], " ")
+	if strings.TrimSpace(query) == "" {
+		return nil, "", fmt.Errorf("search requires a query")
+	}
+	return &cat, query, nil
 }
 
 func openDB() (*config.State, error) {

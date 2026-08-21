@@ -57,4 +57,5 @@ FROM items
 LEFT JOIN entities
 ON entities.id = items.entity_id
 WHERE entities.name LIKE @query
+OR entities.localised_name LIKE @query
 ORDER BY entities.name;

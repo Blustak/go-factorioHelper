@@ -271,6 +271,55 @@ func (q *Queries) GetRecipeByRecipeID(ctx context.Context, id int64) (GetRecipeB
 	return i, err
 }
 
+const searchRecipesByName = `-- name: SearchRecipesByName :many
+SELECT entities.name, recipes.ingredient, recipes.results, recipes.main_product, recipes.energy_required, recipes.category
+FROM recipes
+LEFT JOIN entities
+ON entities.id = recipes.entity_id
+WHERE entities.name LIKE ?1
+OR entities.localised_name LIKE ?1
+ORDER BY entities.name
+`
+
+type SearchRecipesByNameRow struct {
+	Name           sql.NullString
+	Ingredient     []byte
+	Results        []byte
+	MainProduct    sql.NullInt64
+	EnergyRequired sql.NullFloat64
+	Category       sql.NullString
+}
+
+func (q *Queries) SearchRecipesByName(ctx context.Context, query string) ([]SearchRecipesByNameRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchRecipesByName, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchRecipesByNameRow
+	for rows.Next() {
+		var i SearchRecipesByNameRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Ingredient,
+			&i.Results,
+			&i.MainProduct,
+			&i.EnergyRequired,
+			&i.Category,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateRecipeByID = `-- name: UpdateRecipeByID :one
 UPDATE recipes
 SET entity_id = ?1,
