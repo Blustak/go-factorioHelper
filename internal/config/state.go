@@ -1,10 +1,12 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -17,23 +19,31 @@ type State struct {
 	DB  *database.Queries
 	Log *slog.Logger
 	CTX context.Context
+  Writer *bufio.Writer
 
 	dbFile  *sql.DB
 	logFile *os.File
+  outFile io.WriteCloser
 }
 
-func New(ctx context.Context, db *sql.DB, log *slog.Logger) *State {
+func New(ctx context.Context, db *sql.DB, log *slog.Logger, w io.WriteCloser) *State {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
+
+  if w == nil {
+    w = os.Stdout
+  }
 	return &State{
 		DB:     database.New(db),
 		Log:    log,
 		CTX:    ctx,
+    Writer: bufio.NewWriter(w),
 		dbFile: db,
+    outFile: w,
 	}
 }
 

@@ -50,3 +50,11 @@ weight = @weight,
 fuel_category = @fuel_category
 WHERE id = @id
 RETURNING *;
+
+-- name: SearchItemsByName :many
+SELECT entities.name, items.stack_size, items.fuel_value
+FROM items
+LEFT JOIN entities
+ON entities.id = items.entity_id
+WHERE entities.name LIKE @query
+ORDER BY entities.name;
