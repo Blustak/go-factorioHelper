@@ -117,6 +117,32 @@ func TestQueryNilConfig(t *testing.T) {
 	}
 }
 
+func TestQueryEmptyMatchesAll(t *testing.T) {
+	cfg, buf := testQueryState(t)
+	if err := (&Catalog{}).Query(cfg, nil, ""); err != nil {
+		t.Fatalf("Query empty: %v", err)
+	}
+	got := buf.String()
+	want := "[item] Name: wood, Stack Size: 100, Fuel Value: 2000000.00J\n" +
+		"[recipe] Name: wood, Category: crafting, Energy: 0.50s, Ingredients: wood x1, Results: wood x1\n"
+	if got != want {
+		t.Fatalf("Query empty output = %q, want %q", got, want)
+	}
+}
+
+func TestQueryEmptyItems(t *testing.T) {
+	cfg, buf := testQueryState(t)
+	cat := "items"
+	if err := (&Catalog{}).Query(cfg, &cat, ""); err != nil {
+		t.Fatalf("Query empty items: %v", err)
+	}
+	got := buf.String()
+	want := "[item] Name: wood, Stack Size: 100, Fuel Value: 2000000.00J\n"
+	if got != want {
+		t.Fatalf("Query empty items output = %q, want %q", got, want)
+	}
+}
+
 func TestQueryNoMatches(t *testing.T) {
 	cfg, buf := testQueryState(t)
 	if err := (&Catalog{}).Query(cfg, nil, "zzzz-missing"); err != nil {

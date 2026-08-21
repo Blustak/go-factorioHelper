@@ -17,7 +17,7 @@ import (
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s load <dump.json>\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "       %s serve [addr]\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "       %s search [category] <query>\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "       %s search [category] [query]\n", os.Args[0])
 }
 
 func main() {
@@ -120,11 +120,12 @@ func run(args []string) int {
 
 func parseSearchArgs(args []string) (category *string, query string, err error) {
 	if len(args) == 0 {
-		return nil, "", fmt.Errorf("search requires a query")
+		return nil, "", nil
 	}
 	if len(args) == 1 {
-		if strings.TrimSpace(args[0]) == "" {
-			return nil, "", fmt.Errorf("search requires a query")
+		if args[0] == "items" || args[0] == "recipes" {
+			cat := args[0]
+			return &cat, "", nil
 		}
 		return nil, args[0], nil
 	}
@@ -132,11 +133,7 @@ func parseSearchArgs(args []string) (category *string, query string, err error) 
 	if cat != "items" && cat != "recipes" {
 		return nil, "", fmt.Errorf("unknown category: %s", cat)
 	}
-	query = strings.Join(args[1:], " ")
-	if strings.TrimSpace(query) == "" {
-		return nil, "", fmt.Errorf("search requires a query")
-	}
-	return &cat, query, nil
+	return &cat, strings.Join(args[1:], " "), nil
 }
 
 func openDB() (*config.State, error) {

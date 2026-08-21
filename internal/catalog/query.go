@@ -172,7 +172,7 @@ func formatNamedAmount(name string, amount float64) string {
 }
 
 func likePattern(query string) string {
-	return "%" + query + "%"
+	return "%" + strings.TrimSpace(query) + "%"
 }
 
 func fromNullInt64(i sql.NullInt64) (r int64) {
